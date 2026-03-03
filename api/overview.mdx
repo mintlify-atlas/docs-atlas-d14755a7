@@ -1,0 +1,297 @@
+---
+title: API Architecture Overview
+description: Learn about the repository pattern architecture, Result<T> error handling, and dependency injection in the GreenhouseAdmin API
+---
+
+## Architecture Overview
+
+The GreenhouseAdmin API follows a clean **MVVM + Repository Pattern** architecture with consistent error handling and dependency injection across all platforms (Android, iOS, Desktop, Web).
+
+### Core Principles
+
+1. **Repository Pattern** - All data access goes through repository interfaces
+2. **Result&lt;T&gt; Error Handling** - Consistent error handling across all operations
+3. **Dependency Injection** - Koin-based DI for loose coupling
+4. **Platform Abstraction** - Kotlin Multiplatform for cross-platform support
+
+## Repository Pattern
+
+All repositories follow a consistent interface-based design pattern:
+
+```kotlin
+// Domain layer - Interface definition
+package com.apptolast.greenhouse.admin.domain.repository
+
+interface ClientsRepository {
+    suspend fun getClients(): Result<List<Client>>
+    suspend fun getClientById(id: Long): Result<Client>
+    suspend fun createClient(client: Client): Result<Client>
+    suspend fun updateClient(client: Client): Result<Client>
+    suspend fun deleteClient(id: Long): Result<Unit>
+}
+```
+
+```kotlin
+// Data layer - Implementation
+package com.apptolast.greenhouse.admin.data.repository
+
+class ClientsRepositoryImpl(
+    private val tenantsApi: TenantsApiService
+) : ClientsRepository {
+    override suspend fun getClients(): Result<List<Client>> = runCatching {
+        tenantsApi.getAllTenants().map { it.toClient() }
+    }
+    
+    override suspend fun getClientById(id: Long): Result<Client> = runCatching {
+        tenantsApi.getTenantById(id).toClient()
+    }
+    
+    // ... other methods
+}
+```
+
+### Repository Hierarchy
+
+```
+domain/repository/          # Interface definitions
+├── AuthRepository.kt       # Authentication & session management
+├── ClientsRepository.kt    # Tenant/client CRUD operations
+├── UsersRepository.kt      # User management per tenant
+├── GreenhousesRepository.kt # Greenhouse CRUD operations
+├── SectorsRepository.kt    # Sector management within greenhouses
+├── DevicesRepository.kt    # Device management (sensors/actuators)
+├── AlertsRepository.kt     # Alert management and resolution
+├── SettingsRepository.kt   # Settings configuration
+├── DashboardRepository.kt  # Dashboard stats and aggregations
+└── CatalogRepository.kt    # Catalog CRUD (global configuration)
+
+data/repository/            # Implementations
+├── AuthRepositoryImpl.kt
+├── ClientsRepositoryImpl.kt
+├── UsersRepositoryImpl.kt
+├── GreenhousesRepositoryImpl.kt
+├── SectorsRepositoryImpl.kt
+├── DevicesRepositoryImpl.kt
+├── AlertsRepositoryImpl.kt
+├── SettingsRepositoryImpl.kt
+├── DashboardRepositoryImpl.kt
+└── CatalogRepositoryImpl.kt
+```
+
+## All Repositories
+
+The API provides 10 repositories for different domains:
+
+<CardGroup cols={2}>
+  <Card title="ClientsRepository" icon="building" href="/api/repositories/clients">
+    Manage greenhouse clients (tenants)
+  </Card>
+  
+  <Card title="GreenhousesRepository" icon="warehouse" href="/api/repositories/greenhouses">
+    Greenhouse CRUD with location and timezone support
+  </Card>
+  
+  <Card title="SectorsRepository" icon="grid" href="/api/repositories/sectors">
+    Manage sectors within greenhouses
+  </Card>
+  
+  <Card title="DevicesRepository" icon="microchip" href="/api/repositories/devices">
+    Device management (sensors, actuators) with catalog support
+  </Card>
+  
+  <Card title="UsersRepository" icon="users" href="/api/repositories/users">
+    User management and role assignment per tenant
+  </Card>
+  
+  <Card title="AlertsRepository" icon="bell" href="/api/repositories/alerts">
+    Alert CRUD, resolution, and severity management
+  </Card>
+  
+  <Card title="SettingsRepository" icon="sliders" href="/api/repositories/settings">
+    Settings configuration with periods and actuator states
+  </Card>
+</CardGroup>
+
+## Result&lt;T&gt; Error Handling
+
+All repository methods return `Result<T>` for consistent error handling:
+
+```kotlin
+interface GreenhousesRepository {
+    suspend fun getGreenhousesByTenantId(tenantId: Long): Result<List<Greenhouse>>
+    suspend fun createGreenhouse(
+        tenantId: Long,
+        name: String,
+        location: Location? = null,
+        areaM2: Double? = null,
+        timezone: String? = "Europe/Madrid",
+        isActive: Boolean = true
+    ): Result<Greenhouse>
+    suspend fun deleteGreenhouse(tenantId: Long, greenhouseId: Long): Result<Unit>
+}
+```
+
+### Using Result&lt;T&gt; in ViewModels
+
+```kotlin
+class GreenhousesViewModel(
+    private val greenhousesRepository: GreenhousesRepository
+) : ViewModel() {
+    
+    private val _greenhouses = MutableStateFlow<List<Greenhouse>>(emptyList())
+    val greenhouses: StateFlow<List<Greenhouse>> = _greenhouses.asStateFlow()
+    
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+    
+    fun loadGreenhouses(tenantId: Long) {
+        viewModelScope.launch {
+            greenhousesRepository.getGreenhousesByTenantId(tenantId)
+                .onSuccess { greenhouses ->
+                    _greenhouses.value = greenhouses
+                    _error.value = null
+                }
+                .onFailure { exception ->
+                    _error.value = exception.message ?: "Unknown error"
+                }
+        }
+    }
+    
+    fun createGreenhouse(tenantId: Long, name: String, areaM2: Double?) {
+        viewModelScope.launch {
+            greenhousesRepository.createGreenhouse(
+                tenantId = tenantId,
+                name = name,
+                areaM2 = areaM2
+            )
+                .onSuccess { greenhouse ->
+                    // Refresh list
+                    loadGreenhouses(tenantId)
+                }
+                .onFailure { exception ->
+                    _error.value = "Failed to create greenhouse: ${exception.message}"
+                }
+        }
+    }
+}
+```
+
+## Dependency Injection with Koin
+
+Repositories are registered in the Koin DI container for easy injection:
+
+### Module Definition
+
+```kotlin
+// di/DataModule.kt
+val dataModule = module {
+    // Token Storage (platform-specific)
+    singleOf(::TokenStorage)
+    
+    // Auth Event Manager (for session expiration events)
+    singleOf(::AuthEventManager)
+    
+    // HTTP Client (uses TokenStorage for auth)
+    single { createHttpClient(get(), get()) }
+    
+    // API Services
+    singleOf(::AuthApiService)
+    singleOf(::TenantsApiService)
+    singleOf(::UsersApiService)
+    singleOf(::GreenhousesApiService)
+    singleOf(::SectorsApiService)
+    singleOf(::DevicesApiService)
+    singleOf(::AlertsApiService)
+    singleOf(::SettingsApiService)
+    singleOf(::CatalogApiService)
+    
+    // Repositories
+    singleOf(::AuthRepositoryImpl) bind AuthRepository::class
+    singleOf(::DashboardRepositoryImpl) bind DashboardRepository::class
+    singleOf(::ClientsRepositoryImpl) bind ClientsRepository::class
+    singleOf(::UsersRepositoryImpl) bind UsersRepository::class
+    singleOf(::GreenhousesRepositoryImpl) bind GreenhousesRepository::class
+    singleOf(::SectorsRepositoryImpl) bind SectorsRepository::class
+    singleOf(::DevicesRepositoryImpl) bind DevicesRepository::class
+    singleOf(::AlertsRepositoryImpl) bind AlertsRepository::class
+    singleOf(::SettingsRepositoryImpl) bind SettingsRepository::class
+    singleOf(::CatalogRepositoryImpl) bind CatalogRepository::class
+}
+```
+
+### Using Repositories in ViewModels
+
+```kotlin
+// Automatic constructor injection with Koin
+class DashboardViewModel(
+    private val dashboardRepository: DashboardRepository,
+    private val authRepository: AuthRepository
+) : ViewModel() {
+    
+    fun loadDashboard() {
+        viewModelScope.launch {
+            dashboardRepository.getDashboardStats()
+                .onSuccess { stats ->
+                    // Update UI state
+                }
+                .onFailure { error ->
+                    // Handle error
+                }
+        }
+    }
+}
+
+// Register ViewModel in PresentationModule
+val presentationModule = module {
+    viewModelOf(::DashboardViewModel)
+}
+```
+
+### Using in Composables
+
+```kotlin
+import org.koin.compose.viewmodel.koinViewModel
+
+@Composable
+fun DashboardScreen() {
+    val viewModel: DashboardViewModel = koinViewModel()
+    
+    LaunchedEffect(Unit) {
+        viewModel.loadDashboard()
+    }
+    
+    // UI implementation
+}
+```
+
+## Platform Abstraction
+
+Certain components like `TokenStorage` use Kotlin's `expect`/`actual` pattern for platform-specific implementations:
+
+```kotlin
+// commonMain - Interface
+expect class TokenStorage() {
+    fun getAccessToken(): String?
+    fun saveAccessToken(token: String)
+    fun clearTokens()
+    fun isAuthenticated(): Boolean
+}
+```
+
+Each platform provides its own secure storage:
+- **Android**: `SharedPreferences` with encryption
+- **iOS**: Keychain
+- **Web**: `localStorage` or `sessionStorage`
+- **Desktop**: Encrypted file storage
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="lock" href="/api/authentication">
+    Learn about JWT authentication and session management
+  </Card>
+  
+  <Card title="Repository Reference" icon="book" href="/api/repositories/clients">
+    Explore detailed repository interfaces and methods
+  </Card>
+</CardGroup>

@@ -1,0 +1,255 @@
+---
+title: UsersRepository
+description: Repository interface for user data operations
+---
+
+## Overview
+
+The `UsersRepository` provides CRUD operations for managing users within a tenant. Users have roles, credentials, and can be activated or deactivated. All methods are suspend functions that return `Result<T>` for consistent error handling.
+
+## Methods
+
+### getUsersByTenantId()
+
+Fetches all users for a specific tenant.
+
+```kotlin
+suspend fun getUsersByTenantId(tenantId: Long): Result<List<User>>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID to filter users by
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<List<User>>" type="Result">
+  Result containing a list of User objects or an error
+</ResponseField>
+
+---
+
+### createUser()
+
+Creates a new user for a tenant.
+
+```kotlin
+suspend fun createUser(
+    tenantId: Long,
+    username: String,
+    email: String,
+    password: String,
+    role: UserRole,
+    isActive: Boolean = true
+): Result<User>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID the user belongs to
+</ParamField>
+
+<ParamField path="username" type="String" required>
+  The username for login
+</ParamField>
+
+<ParamField path="email" type="String" required>
+  The user's email address
+</ParamField>
+
+<ParamField path="password" type="String" required>
+  The raw password (will be hashed by backend)
+</ParamField>
+
+<ParamField path="role" type="UserRole" required>
+  The user's role
+</ParamField>
+
+<ParamField path="isActive" type="Boolean" default="true">
+  Whether the user is active
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<User>" type="Result">
+  Result containing the created User object or an error
+</ResponseField>
+
+---
+
+### updateUser()
+
+Updates an existing user. All update fields are optional for partial updates.
+
+```kotlin
+suspend fun updateUser(
+    tenantId: Long,
+    userId: Long,
+    username: String? = null,
+    email: String? = null,
+    password: String? = null,
+    role: UserRole? = null,
+    isActive: Boolean? = null
+): Result<User>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID the user belongs to
+</ParamField>
+
+<ParamField path="userId" type="Long" required>
+  The user ID to update
+</ParamField>
+
+<ParamField path="username" type="String" default="null">
+  New username (optional)
+</ParamField>
+
+<ParamField path="email" type="String" default="null">
+  New email (optional)
+</ParamField>
+
+<ParamField path="password" type="String" default="null">
+  New password (optional)
+</ParamField>
+
+<ParamField path="role" type="UserRole" default="null">
+  New role (optional)
+</ParamField>
+
+<ParamField path="isActive" type="Boolean" default="null">
+  New active status (optional)
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<User>" type="Result">
+  Result containing the updated User object or an error
+</ResponseField>
+
+---
+
+### deleteUser()
+
+Deletes a user by ID.
+
+```kotlin
+suspend fun deleteUser(tenantId: Long, userId: Long): Result<Unit>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID the user belongs to
+</ParamField>
+
+<ParamField path="userId" type="Long" required>
+  The user ID to delete
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Unit>" type="Result">
+  Result indicating success or error
+</ResponseField>
+
+## Usage Example
+
+```kotlin
+class UsersViewModel(
+    private val usersRepository: UsersRepository
+) : ViewModel() {
+    
+    private val _users = MutableStateFlow<List<User>>(emptyList())
+    val users: StateFlow<List<User>> = _users.asStateFlow()
+    
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+    
+    fun loadUsers(tenantId: Long) {
+        viewModelScope.launch {
+            usersRepository.getUsersByTenantId(tenantId)
+                .onSuccess { _users.value = it }
+                .onFailure { _error.value = it.message }
+        }
+    }
+    
+    fun createUser(
+        tenantId: Long,
+        username: String,
+        email: String,
+        password: String,
+        role: UserRole
+    ) {
+        viewModelScope.launch {
+            usersRepository.createUser(
+                tenantId = tenantId,
+                username = username,
+                email = email,
+                password = password,
+                role = role,
+                isActive = true
+            )
+                .onSuccess { loadUsers(tenantId) }
+                .onFailure { _error.value = it.message }
+        }
+    }
+    
+    fun updateUserRole(
+        tenantId: Long,
+        userId: Long,
+        newRole: UserRole
+    ) {
+        viewModelScope.launch {
+            usersRepository.updateUser(
+                tenantId = tenantId,
+                userId = userId,
+                role = newRole
+            )
+                .onSuccess { loadUsers(tenantId) }
+                .onFailure { _error.value = it.message }
+        }
+    }
+    
+    fun toggleUserActive(
+        tenantId: Long,
+        userId: Long,
+        isActive: Boolean
+    ) {
+        viewModelScope.launch {
+            usersRepository.updateUser(
+                tenantId = tenantId,
+                userId = userId,
+                isActive = isActive
+            )
+                .onSuccess { loadUsers(tenantId) }
+                .onFailure { _error.value = it.message }
+        }
+    }
+}
+```
+
+## Dependency Injection
+
+Inject the repository using Koin in your Composables:
+
+```kotlin
+import org.koin.compose.viewmodel.koinViewModel
+
+@Composable
+fun UsersScreen(tenantId: Long) {
+    val viewModel: UsersViewModel = koinViewModel()
+    val users by viewModel.users.collectAsState()
+    
+    LaunchedEffect(tenantId) {
+        viewModel.loadUsers(tenantId)
+    }
+    
+    // UI implementation
+}
+```

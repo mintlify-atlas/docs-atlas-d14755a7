@@ -1,0 +1,321 @@
+---
+title: DevicesRepository
+description: Repository interface for device data operations and catalog
+---
+
+## Overview
+
+The `DevicesRepository` provides CRUD operations for managing devices (sensors and actuators) within sectors, as well as catalog methods for device categories, types, and units. All methods are suspend functions that return `Result<T>` for consistent error handling.
+
+## Device CRUD Methods
+
+### getDevicesByTenantId()
+
+Fetches all devices for a specific tenant.
+
+```kotlin
+suspend fun getDevicesByTenantId(tenantId: Long): Result<List<Device>>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID to filter devices by
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<List<Device>>" type="Result">
+  Result containing a list of Device objects or an error
+</ResponseField>
+
+---
+
+### createDevice()
+
+Creates a new device for a tenant.
+
+```kotlin
+suspend fun createDevice(
+    tenantId: Long,
+    sectorId: Long,
+    name: String?,
+    categoryId: Short?,
+    typeId: Short?,
+    unitId: Short?,
+    isActive: Boolean
+): Result<Device>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID the device belongs to
+</ParamField>
+
+<ParamField path="sectorId" type="Long" required>
+  The sector ID where the device is installed
+</ParamField>
+
+<ParamField path="name" type="String">
+  Optional display name for the device
+</ParamField>
+
+<ParamField path="categoryId" type="Short">
+  Device category (1=SENSOR, 2=ACTUATOR)
+</ParamField>
+
+<ParamField path="typeId" type="Short">
+  Device type ID from the catalog
+</ParamField>
+
+<ParamField path="unitId" type="Short">
+  Unit of measure ID from the catalog
+</ParamField>
+
+<ParamField path="isActive" type="Boolean" required>
+  Whether the device is active
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Device>" type="Result">
+  Result containing the created Device object or an error
+</ResponseField>
+
+---
+
+### updateDevice()
+
+Updates an existing device.
+
+```kotlin
+suspend fun updateDevice(
+    tenantId: Long,
+    deviceId: Long,
+    sectorId: Long?,
+    name: String?,
+    categoryId: Short?,
+    typeId: Short?,
+    unitId: Short?,
+    isActive: Boolean?
+): Result<Device>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID the device belongs to
+</ParamField>
+
+<ParamField path="deviceId" type="Long" required>
+  The device ID to update
+</ParamField>
+
+<ParamField path="sectorId" type="Long">
+  New sector ID (optional)
+</ParamField>
+
+<ParamField path="name" type="String">
+  New display name (optional)
+</ParamField>
+
+<ParamField path="categoryId" type="Short">
+  New category ID (optional)
+</ParamField>
+
+<ParamField path="typeId" type="Short">
+  New type ID (optional)
+</ParamField>
+
+<ParamField path="unitId" type="Short">
+  New unit ID (optional)
+</ParamField>
+
+<ParamField path="isActive" type="Boolean">
+  New active status (optional)
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Device>" type="Result">
+  Result containing the updated Device object or an error
+</ResponseField>
+
+---
+
+### deleteDevice()
+
+Deletes a device by ID.
+
+```kotlin
+suspend fun deleteDevice(tenantId: Long, deviceId: Long): Result<Unit>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID the device belongs to
+</ParamField>
+
+<ParamField path="deviceId" type="Long" required>
+  The device ID to delete
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Unit>" type="Result">
+  Result indicating success or error
+</ResponseField>
+
+## Catalog Methods
+
+### getDeviceCategories()
+
+Fetches all device categories from the catalog.
+
+```kotlin
+suspend fun getDeviceCategories(): Result<List<DeviceCatalogCategory>>
+```
+
+**Returns**
+
+<ResponseField name="Result<List<DeviceCatalogCategory>>" type="Result">
+  Result containing a list of DeviceCatalogCategory objects or an error
+</ResponseField>
+
+---
+
+### getDeviceTypes()
+
+Fetches device types from the catalog, optionally filtered by category.
+
+```kotlin
+suspend fun getDeviceTypes(categoryId: Short? = null): Result<List<DeviceCatalogType>>
+```
+
+**Parameters**
+
+<ParamField path="categoryId" type="Short" default="null">
+  Optional category ID to filter types (1=SENSOR, 2=ACTUATOR)
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<List<DeviceCatalogType>>" type="Result">
+  Result containing a list of DeviceCatalogType objects or an error
+</ResponseField>
+
+---
+
+### getUnits()
+
+Fetches all units from the catalog.
+
+```kotlin
+suspend fun getUnits(): Result<List<DeviceCatalogUnit>>
+```
+
+**Returns**
+
+<ResponseField name="Result<List<DeviceCatalogUnit>>" type="Result">
+  Result containing a list of DeviceCatalogUnit objects or an error
+</ResponseField>
+
+## Usage Example
+
+```kotlin
+class DevicesViewModel(
+    private val devicesRepository: DevicesRepository
+) : ViewModel() {
+    
+    private val _devices = MutableStateFlow<List<Device>>(emptyList())
+    val devices: StateFlow<List<Device>> = _devices.asStateFlow()
+    
+    private val _categories = MutableStateFlow<List<DeviceCatalogCategory>>(emptyList())
+    val categories: StateFlow<List<DeviceCatalogCategory>> = _categories.asStateFlow()
+    
+    private val _types = MutableStateFlow<List<DeviceCatalogType>>(emptyList())
+    val types: StateFlow<List<DeviceCatalogType>> = _types.asStateFlow()
+    
+    private val _units = MutableStateFlow<List<DeviceCatalogUnit>>(emptyList())
+    val units: StateFlow<List<DeviceCatalogUnit>> = _units.asStateFlow()
+    
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+    
+    fun loadDevices(tenantId: Long) {
+        viewModelScope.launch {
+            devicesRepository.getDevicesByTenantId(tenantId)
+                .onSuccess { _devices.value = it }
+                .onFailure { _error.value = it.message }
+        }
+    }
+    
+    fun loadCatalogData() {
+        viewModelScope.launch {
+            // Load all catalog data in parallel
+            launch {
+                devicesRepository.getDeviceCategories()
+                    .onSuccess { _categories.value = it }
+                    .onFailure { _error.value = it.message }
+            }
+            launch {
+                devicesRepository.getDeviceTypes()
+                    .onSuccess { _types.value = it }
+                    .onFailure { _error.value = it.message }
+            }
+            launch {
+                devicesRepository.getUnits()
+                    .onSuccess { _units.value = it }
+                    .onFailure { _error.value = it.message }
+            }
+        }
+    }
+    
+    fun createDevice(
+        tenantId: Long,
+        sectorId: Long,
+        name: String?,
+        categoryId: Short?,
+        typeId: Short?,
+        unitId: Short?
+    ) {
+        viewModelScope.launch {
+            devicesRepository.createDevice(
+                tenantId = tenantId,
+                sectorId = sectorId,
+                name = name,
+                categoryId = categoryId,
+                typeId = typeId,
+                unitId = unitId,
+                isActive = true
+            )
+                .onSuccess { loadDevices(tenantId) }
+                .onFailure { _error.value = it.message }
+        }
+    }
+}
+```
+
+## Dependency Injection
+
+Inject the repository using Koin in your Composables:
+
+```kotlin
+import org.koin.compose.viewmodel.koinViewModel
+
+@Composable
+fun DevicesScreen(tenantId: Long) {
+    val viewModel: DevicesViewModel = koinViewModel()
+    val devices by viewModel.devices.collectAsState()
+    val categories by viewModel.categories.collectAsState()
+    
+    LaunchedEffect(Unit) {
+        viewModel.loadCatalogData()
+        viewModel.loadDevices(tenantId)
+    }
+    
+    // UI implementation
+}
+```

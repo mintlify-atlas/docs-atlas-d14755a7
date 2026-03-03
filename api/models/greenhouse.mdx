@@ -1,0 +1,327 @@
+---
+title: Greenhouse Models
+description: Data models for greenhouse facilities and their configuration
+---
+
+Greenhouse models represent individual greenhouse facilities within a client's account. Each greenhouse can contain multiple sectors and devices.
+
+## Greenhouse
+
+Domain model representing a greenhouse facility. Used internally in the app for business logic.
+
+```kotlin
+@Serializable
+data class Greenhouse(
+    val id: Long,
+    val code: String,
+    val name: String,
+    val tenantId: Long,
+    val location: Location? = null,
+    val areaM2: Double? = null,
+    val timezone: String? = "Europe/Madrid",
+    val isActive: Boolean = true,
+    val createdAt: String? = null,
+    val updatedAt: String? = null
+)
+```
+
+### Fields
+
+<ResponseField name="id" type="Long" required>
+  Unique identifier for the greenhouse
+</ResponseField>
+
+<ResponseField name="code" type="String" required>
+  Unique code assigned to the greenhouse
+</ResponseField>
+
+<ResponseField name="name" type="String" required>
+  Greenhouse display name
+</ResponseField>
+
+<ResponseField name="tenantId" type="Long" required>
+  ID of the tenant/client that owns this greenhouse
+</ResponseField>
+
+<ResponseField name="location" type="Location" default="null">
+  Geographic coordinates of the greenhouse. See [Location](/api/models/client#location) for details.
+</ResponseField>
+
+<ResponseField name="areaM2" type="Double" default="null">
+  Total area of the greenhouse in square meters
+</ResponseField>
+
+<ResponseField name="timezone" type="String" default="Europe/Madrid">
+  IANA timezone identifier for the greenhouse location
+</ResponseField>
+
+<ResponseField name="isActive" type="Boolean" default="true">
+  Whether the greenhouse is currently active
+</ResponseField>
+
+<ResponseField name="createdAt" type="String" default="null">
+  ISO 8601 timestamp when the greenhouse was created
+</ResponseField>
+
+<ResponseField name="updatedAt" type="String" default="null">
+  ISO 8601 timestamp when the greenhouse was last updated
+</ResponseField>
+
+### Computed Properties
+
+The `Greenhouse` class provides computed properties for display purposes:
+
+<ResponseField name="initial" type="String">
+  Returns the first letter of the greenhouse name in uppercase, or "?" if name is empty.
+  
+  ```kotlin
+  val initial: String
+      get() = name.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+  ```
+  
+  Example: "North Greenhouse" → "N"
+</ResponseField>
+
+<ResponseField name="areaDisplay" type="String">
+  Returns the formatted area string with units, or "-" if not set.
+  
+  ```kotlin
+  val areaDisplay: String
+      get() = areaM2?.let { "$it m²" } ?: "-"
+  ```
+  
+  Example: "500.0 m²" or "-"
+</ResponseField>
+
+<ResponseField name="locationDisplay" type="String">
+  Returns the location display string, or "-" if not set.
+  
+  ```kotlin
+  val locationDisplay: String
+      get() = location?.displayString?.takeIf { it.isNotBlank() } ?: "-"
+  ```
+  
+  Example: "36.8381, -2.4597" or "-"
+</ResponseField>
+
+### Extension Properties
+
+<ResponseField name="status" type="GreenhouseStatus">
+  Derives the greenhouse status from the `isActive` field.
+  
+  ```kotlin
+  val Greenhouse.status: GreenhouseStatus
+      get() = if (isActive) GreenhouseStatus.ACTIVE else GreenhouseStatus.INACTIVE
+  ```
+</ResponseField>
+
+## GreenhouseStatus
+
+Enum representing the operational status of a greenhouse.
+
+```kotlin
+@Serializable
+enum class GreenhouseStatus {
+    ACTIVE,
+    INACTIVE
+}
+```
+
+### Values
+
+- **ACTIVE**: Greenhouse is active and operational
+- **INACTIVE**: Greenhouse is inactive or disabled
+
+### Computed Properties
+
+<ResponseField name="displayName" type="String">
+  Returns a human-readable display name for the status.
+  
+  ```kotlin
+  val displayName: String
+      get() = name.lowercase().replaceFirstChar { it.uppercase() }
+  ```
+  
+  Example: `ACTIVE` → "Active", `INACTIVE` → "Inactive"
+</ResponseField>
+
+## API DTOs
+
+### GreenhouseResponse
+
+Response DTO from the API representing a greenhouse. Matches the `GreenhouseResponse` structure from the API.
+
+```kotlin
+@Serializable
+data class GreenhouseResponse(
+    val id: Long,
+    val code: String,
+    val name: String,
+    val tenantId: Long,
+    val location: Location? = null,
+    val areaM2: Double? = null,
+    val timezone: String? = null,
+    val isActive: Boolean = true,
+    val createdAt: String,
+    val updatedAt: String
+)
+```
+
+<ResponseField name="toGreenhouse" type="() -> Greenhouse">
+  Converts `GreenhouseResponse` to `Greenhouse` domain model.
+  
+  ```kotlin
+  fun GreenhouseResponse.toGreenhouse() = Greenhouse(
+      id = id,
+      code = code,
+      name = name,
+      tenantId = tenantId,
+      location = location,
+      areaM2 = areaM2,
+      timezone = timezone,
+      isActive = isActive,
+      createdAt = createdAt,
+      updatedAt = updatedAt
+  )
+  ```
+</ResponseField>
+
+### GreenhouseCreateRequest
+
+Request DTO for creating a new greenhouse.
+
+```kotlin
+@Serializable
+data class GreenhouseCreateRequest(
+    val name: String,
+    val location: Location? = null,
+    val areaM2: Double? = null,
+    val timezone: String? = "Europe/Madrid",
+    val isActive: Boolean? = true
+)
+```
+
+<ResponseField name="name" type="String" required>
+  Name of the greenhouse to create
+</ResponseField>
+
+<ResponseField name="location" type="Location" default="null">
+  Geographic coordinates of the greenhouse
+</ResponseField>
+
+<ResponseField name="areaM2" type="Double" default="null">
+  Total area in square meters
+</ResponseField>
+
+<ResponseField name="timezone" type="String" default="Europe/Madrid">
+  IANA timezone identifier
+</ResponseField>
+
+<ResponseField name="isActive" type="Boolean" default="true">
+  Whether the greenhouse should be active upon creation
+</ResponseField>
+
+### GreenhouseUpdateRequest
+
+Request DTO for updating an existing greenhouse. All fields are optional for partial updates.
+
+```kotlin
+@Serializable
+data class GreenhouseUpdateRequest(
+    val name: String? = null,
+    val location: Location? = null,
+    val areaM2: Double? = null,
+    val timezone: String? = null,
+    val isActive: Boolean? = null
+)
+```
+
+<ResponseField name="name" type="String" default="null">
+  Updated name for the greenhouse
+</ResponseField>
+
+<ResponseField name="location" type="Location" default="null">
+  Updated geographic coordinates
+</ResponseField>
+
+<ResponseField name="areaM2" type="Double" default="null">
+  Updated area in square meters
+</ResponseField>
+
+<ResponseField name="timezone" type="String" default="null">
+  Updated timezone identifier
+</ResponseField>
+
+<ResponseField name="isActive" type="Boolean" default="null">
+  Updated active status
+</ResponseField>
+
+## Usage Examples
+
+### Creating a Greenhouse
+
+```kotlin
+val greenhouse = Greenhouse(
+    id = 1L,
+    code = "GH001",
+    name = "North Greenhouse",
+    tenantId = 1L,
+    location = Location(lat = 36.8381, lon = -2.4597),
+    areaM2 = 500.0,
+    timezone = "Europe/Madrid",
+    isActive = true,
+    createdAt = "2024-01-15T10:30:00Z",
+    updatedAt = "2024-01-15T10:30:00Z"
+)
+
+println(greenhouse.initial) // "N"
+println(greenhouse.areaDisplay) // "500.0 m²"
+println(greenhouse.status) // GreenhouseStatus.ACTIVE
+```
+
+### Creating a Greenhouse via API
+
+```kotlin
+val createRequest = GreenhouseCreateRequest(
+    name = "South Greenhouse",
+    location = Location(lat = 36.8381, lon = -2.4597),
+    areaM2 = 750.0,
+    timezone = "Europe/Madrid",
+    isActive = true
+)
+
+val response: GreenhouseResponse = apiClient.createGreenhouse(
+    tenantId = 1L,
+    request = createRequest
+)
+
+val greenhouse: Greenhouse = response.toGreenhouse()
+```
+
+### Updating a Greenhouse
+
+```kotlin
+val updateRequest = GreenhouseUpdateRequest(
+    name = "North Greenhouse (Renovated)",
+    areaM2 = 600.0
+)
+
+val response: GreenhouseResponse = apiClient.updateGreenhouse(
+    tenantId = 1L,
+    greenhouseId = 1L,
+    request = updateRequest
+)
+```
+
+### Checking Status
+
+```kotlin
+val greenhouse = getGreenhouse(1L)
+
+when (greenhouse.status) {
+    GreenhouseStatus.ACTIVE -> println("Greenhouse is operational")
+    GreenhouseStatus.INACTIVE -> println("Greenhouse is offline")
+}
+
+println(greenhouse.status.displayName) // "Active" or "Inactive"
+```

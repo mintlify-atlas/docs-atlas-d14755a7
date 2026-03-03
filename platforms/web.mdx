@@ -1,0 +1,352 @@
+---
+title: Web Platform
+description: Deploy GreenhouseAdmin as a web application using WebAssembly or JavaScript targets
+---
+
+# Web Platform
+
+The **Web platform** is the primary deployment target for GreenhouseAdmin. This guide covers building and deploying the application using either the modern **Wasm** target or the legacy **JavaScript** target.
+
+## Overview
+
+GreenhouseAdmin supports two web compilation targets:
+
+- **Wasm (WebAssembly)**: Modern, faster runtime using Kotlin/Wasm - **Recommended**
+- **JS (JavaScript)**: Legacy target for older browser support
+
+<Note>
+  The Wasm target provides better performance and is recommended for production deployments to modern browsers.
+</Note>
+
+## Development
+
+### Running the Development Server
+
+<Tabs>
+  <Tab title="Wasm (Recommended)">
+    The Wasm target provides the best performance and is the recommended choice for modern browsers.
+
+    <CodeGroup>
+      ```bash macOS/Linux
+      ./gradlew :composeApp:wasmJsBrowserDevelopmentRun
+      ```
+
+      ```bash Windows
+      .\gradlew.bat :composeApp:wasmJsBrowserDevelopmentRun
+      ```
+    </CodeGroup>
+
+    The development server will start at `http://localhost:8080` with hot reload enabled.
+  </Tab>
+
+  <Tab title="JS (Legacy)">
+    The JavaScript target provides compatibility with older browsers but with slower performance.
+
+    <CodeGroup>
+      ```bash macOS/Linux
+      ./gradlew :composeApp:jsBrowserDevelopmentRun
+      ```
+
+      ```bash Windows
+      .\gradlew.bat :composeApp:jsBrowserDevelopmentRun
+      ```
+    </CodeGroup>
+
+    The development server will start at `http://localhost:8080`.
+  </Tab>
+</Tabs>
+
+### HTTP Client Configuration
+
+The web targets use the Ktor JS engine for network requests:
+
+```kotlin composeApp/build.gradle.kts
+val wasmJsMain by getting {
+    dependencies {
+        // Ktor - JS engine for Wasm
+        implementation(libs.ktor.client.js)
+    }
+}
+
+jsMain.dependencies {
+    // Ktor - JS engine for JavaScript
+    implementation(libs.ktor.client.js)
+}
+```
+
+## Production Build
+
+### Building for Production
+
+<Steps>
+  <Step title="Upgrade Yarn Lock Files">
+    After any dependency changes, update the Yarn lock files for both targets:
+
+    <CodeGroup>
+      ```bash Wasm Target
+      ./gradlew kotlinWasmUpgradeYarnLock
+      ```
+
+      ```bash JS Target
+      ./gradlew kotlinUpgradeYarnLock
+      ```
+    </CodeGroup>
+
+    <Warning>
+      Always run these commands after modifying dependencies in `build.gradle.kts` or `libs.versions.toml`.
+    </Warning>
+  </Step>
+
+  <Step title="Build Production Distribution">
+    Build the optimized production bundle:
+
+    <Tabs>
+      <Tab title="Wasm">
+        ```bash
+        ./gradlew :composeApp:wasmJsBrowserDistribution
+        ```
+
+        Output location: `composeApp/build/dist/wasmJs/productionExecutable/`
+      </Tab>
+
+      <Tab title="JS">
+        ```bash
+        ./gradlew :composeApp:jsBrowserDistribution
+        ```
+
+        Output location: `composeApp/build/dist/js/productionExecutable/`
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Configure API Base URL">
+    Set the API endpoint using `local.properties`:
+
+    ```properties local.properties
+    API_BASE_URL=https://api.example.com/api/v1/
+    ```
+
+    This value is injected into the application via BuildKonfig at compile time.
+  </Step>
+</Steps>
+
+## Deployment
+
+### Nginx Configuration
+
+The project includes a production-ready Nginx configuration with optimizations for Wasm applications.
+
+<AccordionGroup>
+  <Accordion title="Key Nginx Features">
+    - **Wasm MIME Type**: Properly configured `application/wasm` type
+    - **COOP/COEP Headers**: Required for `SharedArrayBuffer` support (needed by Skiko/Compose)
+    - **Smart Caching**: Aggressive caching for hashed assets, revalidation for entry points
+    - **SPA Routing**: Fallback to `index.html` for client-side routing
+    - **Gzip Compression**: Including `.wasm` files
+    - **Security Headers**: XSS protection, frame options, content type sniffing prevention
+  </Accordion>
+
+  <Accordion title="Critical Headers for Wasm">
+    ```nginx nginx.conf
+    # Required for SharedArrayBuffer support in Compose Multiplatform
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    add_header Cross-Origin-Embedder-Policy "require-corp" always;
+
+    # Add WASM MIME type
+    types {
+        application/wasm wasm;
+    }
+    ```
+
+    <Warning>
+      Without these headers, Wasm applications using Skiko (Compose's rendering engine) will fail to load.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Caching Strategy">
+    ```nginx nginx.conf
+    # index.html: NEVER cache aggressively (allows updates)
+    location = /index.html {
+        add_header Cache-Control "no-cache" always;
+    }
+
+    # Entry point JS/CSS: revalidate always
+    location ~* ^/(composeApp\.js|styles\.css)$ {
+        add_header Cache-Control "no-cache" always;
+    }
+
+    # Hashed chunks and WASM: cache forever (immutable)
+    location ~* \.wasm$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable" always;
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+The complete configuration is available at `nginx.conf` in the project root.
+
+### Docker Deployment
+
+The project includes a multi-stage Dockerfile for containerized deployments.
+
+<Steps>
+  <Step title="Build Docker Image">
+    Build the production image with API configuration:
+
+    ```bash
+    docker build \
+      --build-arg API_BASE_URL=https://api.example.com/api/v1/ \
+      -t greenhouse-admin:latest \
+      .
+    ```
+  </Step>
+
+  <Step title="Run Container">
+    Run the containerized application:
+
+    ```bash
+    docker run -d \
+      -p 80:80 \
+      --name greenhouse-admin \
+      greenhouse-admin:latest
+    ```
+
+    The application will be available at `http://localhost`.
+  </Step>
+
+  <Step title="Health Check">
+    The container includes a health check endpoint:
+
+    ```bash
+    curl http://localhost/health
+    ```
+
+    Should return `OK`.
+  </Step>
+</Steps>
+
+<Accordion title="Dockerfile Structure">
+  The multi-stage build process:
+
+  **Stage 1 - Builder** (`gradle:8.10-jdk21`):
+  - Installs `libatomic1` (required for Node.js v25+ used by Kotlin/Wasm)
+  - Copies Gradle configuration and source code
+  - Creates `local.properties` with `API_BASE_URL` from build argument
+  - Upgrades Yarn lock files
+  - Builds Wasm production distribution
+
+  **Stage 2 - Runtime** (`nginx:alpine`):
+  - Copies custom Nginx configuration
+  - Copies built Wasm application from builder stage
+  - Exposes port 80 with health check endpoint
+
+  Full configuration: `Dockerfile` in project root
+</Accordion>
+
+### Environment Configuration
+
+The application uses BuildKonfig to inject environment-specific configuration at compile time:
+
+```kotlin composeApp/build.gradle.kts
+buildkonfig {
+    packageName = "com.apptolast.greenhouse.admin"
+    defaultConfigs {
+        buildConfigField(STRING, "API_BASE_URL", 
+            localProperties.getProperty("API_BASE_URL", ""))
+    }
+}
+```
+
+Access in code:
+
+```kotlin
+import com.apptolast.greenhouse.admin.BuildKonfig
+
+val apiUrl = BuildKonfig.API_BASE_URL
+```
+
+## Browser Compatibility
+
+### Wasm Target
+
+**Minimum Browser Versions**:
+- Chrome/Edge 119+
+- Firefox 120+
+- Safari 17.4+
+
+<Note>
+  Wasm GC support is required. Older browsers will not work with the Wasm target.
+</Note>
+
+### JS Target
+
+**Minimum Browser Versions**:
+- Chrome/Edge 90+
+- Firefox 88+
+- Safari 14+
+
+The JS target provides broader compatibility for older browsers.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="SharedArrayBuffer is not defined">
+    **Cause**: Missing COOP/COEP headers
+
+    **Solution**: Ensure your web server sends the required headers:
+    ```
+    Cross-Origin-Opener-Policy: same-origin
+    Cross-Origin-Embedder-Policy: require-corp
+    ```
+
+    See the `nginx.conf` file for a complete example.
+  </Accordion>
+
+  <Accordion title="Wasm file fails to load">
+    **Cause**: Incorrect MIME type configuration
+
+    **Solution**: Add the Wasm MIME type to your server:
+    ```nginx
+    types {
+        application/wasm wasm;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Build fails with Yarn errors">
+    **Cause**: Outdated lock files after dependency changes
+
+    **Solution**: Upgrade Yarn lock files:
+    ```bash
+    ./gradlew kotlinWasmUpgradeYarnLock
+    ./gradlew kotlinUpgradeYarnLock
+    ```
+  </Accordion>
+
+  <Accordion title="Out of memory during build">
+    **Cause**: Insufficient JVM heap for Gradle
+
+    **Solution**: Increase Gradle memory in `gradle.properties`:
+    ```properties
+    org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Android Platform" icon="android" href="/platforms/android">
+    Build and deploy to Android devices
+  </Card>
+  <Card title="iOS Platform" icon="apple" href="/platforms/ios">
+    Build and deploy to iOS devices
+  </Card>
+  <Card title="Desktop Platform" icon="desktop" href="/platforms/desktop">
+    Build native desktop applications
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/concepts/architecture">
+    Learn about the app architecture
+  </Card>
+</CardGroup>

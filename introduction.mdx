@@ -1,0 +1,119 @@
+---
+title: Welcome to Greenhouse Admin
+description: A modern Kotlin Multiplatform admin portal for managing greenhouse clients across all platforms
+---
+
+# Welcome to Greenhouse Admin
+
+Greenhouse Admin is a **Kotlin Multiplatform (KMP)** admin portal built with **Compose Multiplatform** for managing greenhouse clients. Experience native performance across Web, Android, iOS, and Desktop from a single codebase.
+
+<CardGroup cols={2}>
+  <Card
+    title="Quickstart"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get up and running in minutes with our quick start guide
+  </Card>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Install and configure Greenhouse Admin on all platforms
+  </Card>
+  <Card
+    title="API reference"
+    icon="code"
+    href="/api/overview"
+  >
+    Explore the repository interfaces and data models
+  </Card>
+  <Card
+    title="GitHub"
+    icon="github"
+    href="https://github.com/apptolast/greenhouse-admin"
+  >
+    View source code and contribute to the project
+  </Card>
+</CardGroup>
+
+## Key features
+
+### Multiplatform architecture
+
+Build once, deploy everywhere. Greenhouse Admin uses Kotlin Multiplatform to share business logic across all platforms while maintaining native UI experiences with Compose Multiplatform.
+
+### MVVM + repository pattern
+
+Clean architecture with separation of concerns. ViewModels manage UI state, repositories handle data operations, and dependency injection with Koin keeps everything testable and maintainable.
+
+### Modern networking with Ktor
+
+Type-safe HTTP client with built-in serialization, logging, and authentication. Configure once in common code and use platform-specific engines (OkHttp for Android/JVM, Darwin for iOS, JS for Web).
+
+### Dependency injection with Koin
+
+Lightweight DI framework optimized for Kotlin Multiplatform. Constructor injection, ViewModels integration, and platform-specific modules make your code clean and testable.
+
+### Material 3 design system
+
+Beautiful dark theme with neon green accents. Built on Material Design 3 with adaptive layouts that respond to screen size and orientation across all platforms.
+
+### Type-safe navigation
+
+Navigate between screens with compile-time safety using Kotlinx Serialization. No more string-based routes or runtime crashes from invalid navigation arguments.
+
+### Web-first development
+
+Primary target is Web (WebAssembly/JavaScript) with future mobile adaptation. Run the admin portal in any modern browser with native-like performance using Kotlin/Wasm.
+
+## Platform support
+
+<CardGroup cols={2}>
+  <Card title="Web" icon="globe">
+    WebAssembly (Wasm) for modern browsers with JavaScript fallback
+  </Card>
+  <Card title="Android" icon="android">
+    Android 7.0 (API 24) and above with Material You support
+  </Card>
+  <Card title="iOS" icon="apple">
+    iOS 14+ with native performance using Compose Multiplatform
+  </Card>
+  <Card title="Desktop" icon="desktop">
+    macOS, Windows, and Linux using JVM with native installers
+  </Card>
+</CardGroup>
+
+## Technology stack
+
+| Technology | Purpose | Version |
+| --- | --- | --- |
+| Kotlin | Primary language | 2.3.0 |
+| Compose Multiplatform | UI framework | 1.10.0 |
+| Koin | Dependency injection | 4.1.1 |
+| Ktor | HTTP client | 3.4.0 |
+| Kotlinx Serialization | JSON serialization | 1.10.0 |
+| Lifecycle ViewModel | State management | 2.9.6 |
+| Material 3 Adaptive | Responsive layouts | 1.2.0 |
+
+<Note>
+Greenhouse Admin follows MVVM architecture with the Repository pattern. All code comments and documentation are in English, with UI strings supporting English and Spanish localization.
+</Note>
+
+## Next steps
+
+<Steps>
+  <Step title="Read the quickstart guide">
+    Learn how to run your first Greenhouse Admin instance in under 5 minutes
+  </Step>
+  <Step title="Install on your platform">
+    Follow platform-specific installation instructions for Web, Android, iOS, or Desktop
+  </Step>
+  <Step title="Explore the architecture">
+    Understand the MVVM structure and how to extend the application
+  </Step>
+  <Step title="Configure your environment">
+    Set up API endpoints and build configurations for development and production
+  </Step>
+</Steps>

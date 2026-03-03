@@ -1,0 +1,244 @@
+---
+title: Sector Models
+description: Data models for greenhouse sectors and zones
+---
+
+Sector models represent subdivisions within a greenhouse. Each sector can contain multiple devices and has its own monitoring and control settings.
+
+## Sector
+
+Domain model representing a sector within a greenhouse. Used internally in the app for business logic.
+
+```kotlin
+@Serializable
+data class Sector(
+    val id: Long,
+    val code: String,
+    val tenantId: Long,
+    val greenhouseId: Long,
+    val greenhouseCode: String? = null,
+    val name: String? = null
+)
+```
+
+### Fields
+
+<ResponseField name="id" type="Long" required>
+  Unique identifier for the sector
+</ResponseField>
+
+<ResponseField name="code" type="String" required>
+  Unique code assigned to the sector
+</ResponseField>
+
+<ResponseField name="tenantId" type="Long" required>
+  ID of the tenant/client that owns this sector
+</ResponseField>
+
+<ResponseField name="greenhouseId" type="Long" required>
+  ID of the greenhouse this sector belongs to
+</ResponseField>
+
+<ResponseField name="greenhouseCode" type="String" default="null">
+  Code of the parent greenhouse (for display purposes)
+</ResponseField>
+
+<ResponseField name="name" type="String" default="null">
+  Optional display name for the sector
+</ResponseField>
+
+### Computed Properties
+
+The `Sector` class provides computed properties for display purposes:
+
+<ResponseField name="initial" type="String">
+  Returns the first letter of the sector name in uppercase for avatars, or "S" as default.
+  
+  ```kotlin
+  val initial: String
+      get() = name?.firstOrNull()?.uppercaseChar()?.toString() ?: "S"
+  ```
+  
+  Example: "Zone A" → "Z", `null` → "S"
+</ResponseField>
+
+<ResponseField name="displayName" type="String">
+  Returns the display name, or a default "Sector" string if name is null.
+  
+  ```kotlin
+  val displayName: String
+      get() = name ?: "Sector"
+  ```
+  
+  Example: "Zone A" → "Zone A", `null` → "Sector"
+</ResponseField>
+
+## API DTOs
+
+### SectorResponse
+
+Response DTO from the API representing a sector. Matches the `SectorResponse` structure from the API.
+
+```kotlin
+@Serializable
+data class SectorResponse(
+    val id: Long,
+    val code: String,
+    val tenantId: Long,
+    val greenhouseId: Long,
+    val greenhouseCode: String? = null,
+    val name: String? = null
+)
+```
+
+<ResponseField name="id" type="Long" required>
+  Unique identifier for the sector
+</ResponseField>
+
+<ResponseField name="code" type="String" required>
+  Unique code assigned to the sector
+</ResponseField>
+
+<ResponseField name="tenantId" type="Long" required>
+  ID of the tenant/client
+</ResponseField>
+
+<ResponseField name="greenhouseId" type="Long" required>
+  ID of the parent greenhouse
+</ResponseField>
+
+<ResponseField name="greenhouseCode" type="String" default="null">
+  Code of the parent greenhouse
+</ResponseField>
+
+<ResponseField name="name" type="String" default="null">
+  Optional display name
+</ResponseField>
+
+<ResponseField name="toSector" type="() -> Sector">
+  Converts `SectorResponse` to `Sector` domain model.
+  
+  ```kotlin
+  fun SectorResponse.toSector() = Sector(
+      id = id,
+      code = code,
+      tenantId = tenantId,
+      greenhouseId = greenhouseId,
+      greenhouseCode = greenhouseCode,
+      name = name
+  )
+  ```
+</ResponseField>
+
+### SectorCreateRequest
+
+Request DTO for creating a new sector.
+
+```kotlin
+@Serializable
+data class SectorCreateRequest(
+    val greenhouseId: Long,
+    val name: String? = null
+)
+```
+
+<ResponseField name="greenhouseId" type="Long" required>
+  ID of the greenhouse to create the sector in
+</ResponseField>
+
+<ResponseField name="name" type="String" default="null">
+  Optional display name for the sector
+</ResponseField>
+
+### SectorUpdateRequest
+
+Request DTO for updating an existing sector. All fields are optional for partial updates.
+
+```kotlin
+@Serializable
+data class SectorUpdateRequest(
+    val greenhouseId: Long? = null,
+    val name: String? = null
+)
+```
+
+<ResponseField name="greenhouseId" type="Long" default="null">
+  Updated parent greenhouse ID (to move sector to different greenhouse)
+</ResponseField>
+
+<ResponseField name="name" type="String" default="null">
+  Updated display name
+</ResponseField>
+
+## Usage Examples
+
+### Creating a Sector
+
+```kotlin
+val sector = Sector(
+    id = 1L,
+    code = "SEC001",
+    tenantId = 1L,
+    greenhouseId = 1L,
+    greenhouseCode = "GH001",
+    name = "Zone A"
+)
+
+println(sector.initial) // "Z"
+println(sector.displayName) // "Zone A"
+```
+
+### Creating a Sector via API
+
+```kotlin
+val createRequest = SectorCreateRequest(
+    greenhouseId = 1L,
+    name = "Zone B"
+)
+
+val response: SectorResponse = apiClient.createSector(
+    tenantId = 1L,
+    request = createRequest
+)
+
+val sector: Sector = response.toSector()
+```
+
+### Updating a Sector
+
+```kotlin
+val updateRequest = SectorUpdateRequest(
+    name = "Zone A (North Side)"
+)
+
+val response: SectorResponse = apiClient.updateSector(
+    tenantId = 1L,
+    sectorId = 1L,
+    request = updateRequest
+)
+```
+
+### Displaying Sector Information
+
+```kotlin
+val sector = getSector(1L)
+
+println("Sector: ${sector.displayName}")
+println("Code: ${sector.code}")
+println("Greenhouse: ${sector.greenhouseCode ?: "Unknown"}")
+println("Initial: ${sector.initial}")
+```
+
+### Moving a Sector to Another Greenhouse
+
+```kotlin
+val updateRequest = SectorUpdateRequest(
+    greenhouseId = 2L  // Move to different greenhouse
+)
+
+val response: SectorResponse = apiClient.updateSector(
+    tenantId = 1L,
+    sectorId = 1L,
+    request = updateRequest
+)
+```

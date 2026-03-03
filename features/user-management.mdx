@@ -1,0 +1,429 @@
+---
+title: User Management
+description: Create and manage user accounts with role-based access control for each client
+---
+
+## Overview
+
+User Management allows administrators to create and manage user accounts for each client organization. Each client has their own set of users with specific roles that determine their permissions and access levels within the greenhouse monitoring system.
+
+<Note>
+  Users are scoped to a specific client (tenant). Each user account belongs to one client and can only access that client's greenhouses, devices, and data.
+</Note>
+
+## Accessing User Management
+
+To manage users for a client:
+
+1. Navigate to a **client detail** screen
+2. Select the **"Users"** tab
+3. View all users for this client organization
+
+## User Roles
+
+The system supports three role types with different permission levels:
+
+<CardGroup cols={3}>
+  <Card title="Admin" icon="user-shield">
+    **Full Access**
+    
+    - Manage all client resources
+    - Create/edit/delete users
+    - Configure greenhouses and devices
+    - Modify system settings
+    - View all data and reports
+  </Card>
+  
+  <Card title="Operator" icon="user-gear">
+    **Operational Access**
+    
+    - Monitor greenhouse conditions
+    - Control devices and actuators
+    - Acknowledge and resolve alerts
+    - View and export data
+    - Limited configuration access
+  </Card>
+  
+  <Card title="Viewer" icon="user">
+    **Read-Only Access**
+    
+    - View greenhouse data
+    - Monitor device readings
+    - See alert status
+    - Generate reports
+    - No edit or control permissions
+  </Card>
+</CardGroup>
+
+## User Properties
+
+Each user account has the following attributes:
+
+### Account Identifiers
+- **User Code**: Unique system-generated identifier
+- **User ID**: Internal database reference
+- **Client ID**: The organization this user belongs to
+
+### Login Credentials
+- **Username**: Login identifier (must be unique within the client)
+- **Email**: Contact email address (must be valid format)
+- **Password**: Encrypted authentication credential
+
+### Access Control
+- **Role**: Admin, Operator, or Viewer
+- **Status**: Active or Inactive
+
+### Activity Tracking
+- **Last Login**: Timestamp of most recent login
+- **Created At**: Account creation date
+- **Updated At**: Last modification date
+
+## Creating a New User
+
+Follow these steps to add a user to a client account:
+
+<Steps>
+  <Step title="Navigate to Users Tab">
+    Go to the client detail screen and select the **"Users"** tab
+  </Step>
+  
+  <Step title="Open User Form">
+    Click the **"Add User"** or **"+"** button to open the user creation dialog
+  </Step>
+  
+  <Step title="Enter User Credentials">
+    Fill in the required login information:
+    
+    - **Username** (required): Unique username for login (e.g., "jsmith", "john.smith")
+    - **Email** (required): Valid email address for notifications and recovery
+    - **Password** (required): Secure password for authentication
+    
+    <Warning>
+      Choose a strong password with a mix of letters, numbers, and special characters. The password is encrypted before storage.
+    </Warning>
+  </Step>
+  
+  <Step title="Assign Role">
+    Select the appropriate role based on the user's responsibilities:
+    
+    - **Admin**: For managers and administrators who need full control
+    - **Operator**: For greenhouse workers who monitor and control operations
+    - **Viewer**: For stakeholders who need read-only access
+  </Step>
+  
+  <Step title="Set Status">
+    Choose the account status:
+    
+    - **Active**: User can log in and access the system (default)
+    - **Inactive**: Account is disabled but preserved
+  </Step>
+  
+  <Step title="Submit">
+    Click **"Create"** to save the user account. The system will:
+    - Generate a unique user code
+    - Encrypt the password
+    - Associate the user with the client
+    - Send a welcome email (if configured)
+  </Step>
+</Steps>
+
+<Tip>
+  Create Admin accounts for client managers, Operator accounts for greenhouse staff, and Viewer accounts for external stakeholders or reporting purposes.
+</Tip>
+
+## Viewing User Information
+
+The users table displays comprehensive account details:
+
+| Column | Description |
+|--------|-------------|
+| **Code** | Unique user identifier |
+| **Username** | Login username |
+| **Email** | Contact email address |
+| **Role** | Admin, Operator, or Viewer badge |
+| **Status** | Active/Inactive indicator |
+| **Last Login** | Most recent login timestamp |
+| **Actions** | Edit and delete buttons |
+
+### Role Badges
+
+Roles are displayed with distinct visual indicators:
+
+<Accordion title="Admin (Green Badge)">
+  Users with full administrative privileges. Can manage all aspects of the client account including other users, greenhouses, devices, and settings.
+</Accordion>
+
+<Accordion title="Operator (Blue Badge)">
+  Users with operational access. Can monitor conditions, control devices, and manage day-to-day greenhouse operations but have limited configuration access.
+</Accordion>
+
+<Accordion title="Viewer (Gray Badge)">
+  Users with read-only access. Can view data, generate reports, and monitor status but cannot make changes or control devices.
+</Accordion>
+
+## Editing User Accounts
+
+To update an existing user:
+
+<Steps>
+  <Step title="Locate the User">
+    Find the user in the Users tab list
+  </Step>
+  
+  <Step title="Open Edit Dialog">
+    Click the **edit icon** (pencil) in the user's action column
+  </Step>
+  
+  <Step title="Modify Information">
+    Update any of the following:
+    
+    - **Username**: Change the login identifier
+    - **Email**: Update contact email
+    - **Password**: Set a new password (optional - leave blank to keep existing)
+    - **Role**: Promote/demote between Admin, Operator, and Viewer
+    - **Status**: Activate or deactivate the account
+  </Step>
+  
+  <Step title="Save Changes">
+    Click **"Update"** to save the modifications
+  </Step>
+</Steps>
+
+<Note>
+  The user code and client association cannot be changed after account creation. To move a user to a different client, you must create a new account.
+</Note>
+
+## Changing User Passwords
+
+Passwords can be updated when editing a user:
+
+1. **Open the edit dialog** for the user
+2. **Enter a new password** in the password field
+3. **Leave blank** to keep the existing password unchanged
+4. **Save** to update the password
+
+<Warning>
+  Password changes take effect immediately. Users will need to use the new password for their next login.
+</Warning>
+
+## Managing User Roles
+
+### Promoting a User
+
+To give a user more permissions:
+
+1. Edit the user account
+2. Change role to a higher level:
+   - Viewer → Operator (add control capabilities)
+   - Operator → Admin (grant full administrative access)
+   - Viewer → Admin (grant full access)
+3. Save changes
+
+### Demoting a User
+
+To restrict a user's permissions:
+
+1. Edit the user account
+2. Change role to a lower level:
+   - Admin → Operator (remove admin privileges)
+   - Admin → Viewer (restrict to read-only)
+   - Operator → Viewer (remove control capabilities)
+3. Save changes
+
+<Tip>
+  Role changes take effect immediately. The user's next action will be subject to their new permission level.
+</Tip>
+
+## User Status Management
+
+### Active Users
+
+Set accounts to **Active** when:
+- The user needs access to the system
+- The account is in good standing
+- The user is part of the client's team
+
+Active users can:
+- Log in to the system
+- Access features based on their role
+- Receive notifications and alerts
+
+### Inactive Users
+
+Set accounts to **Inactive** when:
+- The user has left the organization
+- Account access should be temporarily suspended
+- You want to preserve the account without allowing login
+
+Inactive users:
+- Cannot log in to the system
+- Don't receive notifications
+- Are preserved in the database for audit trails
+- Can be reactivated at any time
+
+<Note>
+  Setting a user to Inactive is reversible. Use this instead of deleting when you might need to restore access later.
+</Note>
+
+## Deleting User Accounts
+
+To permanently remove a user:
+
+<Warning>
+  Deleting a user account is permanent and cannot be undone. The username and email will become available for reuse. Consider setting the account to Inactive instead if you want to preserve the record.
+</Warning>
+
+<Steps>
+  <Step title="Initiate Deletion">
+    Click the **delete icon** (trash can) in the user's action column
+  </Step>
+  
+  <Step title="Confirm Deletion">
+    Review the confirmation dialog showing the username and email
+  </Step>
+  
+  <Step title="Complete Deletion">
+    Click **"Confirm Delete"** to permanently remove the user account
+  </Step>
+</Steps>
+
+<Tip>
+  For users who have left the organization, setting them to **Inactive** preserves audit trails and historical data attribution.
+</Tip>
+
+## Last Login Tracking
+
+The system tracks when each user last logged in:
+
+- **Recent Login**: Shows timestamp of most recent login
+- **Never Logged In**: Displays "-" or "Never" for accounts that haven't been used
+- **Monitoring**: Helps identify inactive accounts or security concerns
+
+### Use Cases for Login Tracking
+
+1. **Security Audits**: Identify accounts that haven't been used in a long time
+2. **License Management**: Find unused accounts to deactivate
+3. **User Engagement**: See which users are actively using the system
+4. **Troubleshooting**: Verify that users can successfully log in
+
+## Common Workflows
+
+### Onboarding a New Team Member
+
+<Steps>
+  <Step title="Create Account">
+    Add a new user with appropriate role (usually Operator for staff)
+  </Step>
+  
+  <Step title="Send Credentials">
+    Provide the username and temporary password securely
+  </Step>
+  
+  <Step title="First Login">
+    Have the user log in and verify access
+  </Step>
+  
+  <Step title="Password Change">
+    User should change their password on first login
+  </Step>
+  
+  <Step title="Training">
+    Provide training based on their role and permissions
+  </Step>
+</Steps>
+
+### Offboarding a Team Member
+
+<Steps>
+  <Step title="Immediate Action">
+    Set the user account to **Inactive** immediately upon departure
+  </Step>
+  
+  <Step title="Review Activity">
+    Check last login and recent activity for security audit
+  </Step>
+  
+  <Step title="Data Handoff">
+    Ensure any critical data or responsibilities are transferred
+  </Step>
+  
+  <Step title="Archive Decision">
+    After 30-90 days, decide whether to keep inactive or delete
+  </Step>
+</Steps>
+
+### Password Reset Request
+
+<Steps>
+  <Step title="Verify Identity">
+    Confirm the user's identity through email or other means
+  </Step>
+  
+  <Step title="Edit User">
+    Open the user's account in edit mode
+  </Step>
+  
+  <Step title="Set New Password">
+    Enter a temporary password
+  </Step>
+  
+  <Step title="Communicate">
+    Securely send the new password to the user
+  </Step>
+  
+  <Step title="Force Change">
+    Instruct user to change password on next login
+  </Step>
+</Steps>
+
+### Role Migration
+
+**Promoting an Operator to Admin:**
+1. Review the user's performance and reliability
+2. Edit the user account
+3. Change role from Operator to Admin
+4. Notify user of new permissions
+5. Provide any additional training on admin features
+
+**Creating a Viewer Account for External Access:**
+1. Create new user with Viewer role
+2. Use a descriptive username (e.g., "external.auditor")
+3. Set a strong password
+4. Set to Active only when access is needed
+5. Set to Inactive when access period ends
+
+## Best Practices
+
+1. **Principle of Least Privilege**: Assign the minimum role needed for each user's responsibilities
+2. **Strong Passwords**: Require complex passwords with letters, numbers, and symbols
+3. **Regular Audits**: Review user list quarterly to deactivate unused accounts
+4. **Role Clarity**: Ensure users understand their role and permissions
+5. **Status Management**: Promptly deactivate accounts when team members leave
+6. **Email Accuracy**: Keep email addresses current for notifications and password resets
+7. **Username Standards**: Use consistent username format (e.g., firstname.lastname)
+8. **Limit Admins**: Only assign Admin role to trusted managers and IT staff
+
+## Security Considerations
+
+<Warning>
+  **Admin accounts have full access to all client data and settings.** Only assign the Admin role to trusted individuals who need comprehensive system access.
+</Warning>
+
+### Account Security Tips
+
+- **Unique Usernames**: Don't reuse usernames across different clients
+- **Password Complexity**: Enforce strong password requirements
+- **Regular Reviews**: Audit user accounts monthly for security
+- **Immediate Deactivation**: Disable access immediately when users leave
+- **Separate Accounts**: Don't share login credentials between multiple people
+- **Monitor Last Login**: Watch for suspicious login patterns
+
+## Integration with Other Features
+
+User management integrates with:
+
+- **Authentication**: Users log in with credentials to access the system
+- **Audit Trails**: User actions are logged with username and timestamp
+- **Notifications**: Users receive alerts based on their role and permissions
+- **Dashboard**: User activity and statistics appear in admin reports
+- **Client Management**: Users are scoped to specific client organizations

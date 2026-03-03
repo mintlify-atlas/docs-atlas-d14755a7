@@ -1,0 +1,292 @@
+---
+title: Development Environment Setup
+description: Set up your local development environment for GreenhouseAdmin Kotlin Multiplatform project
+---
+
+This guide will help you set up your development environment for the GreenhouseAdmin project, a Kotlin Multiplatform application targeting Web (Wasm/JS), Android, iOS, and Desktop (JVM).
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+<Steps>
+  <Step title="Java Development Kit (JDK) 21">
+    Download and install JDK 21 from [Adoptium](https://adoptium.net/) or [Oracle](https://www.oracle.com/java/technologies/downloads/).
+    
+    Verify installation:
+    ```bash
+    java -version
+    # Should show version 21.x.x
+    ```
+  </Step>
+
+  <Step title="Android SDK (for Android builds)">
+    Install Android SDK through [Android Studio](https://developer.android.com/studio) or standalone command-line tools.
+    
+    Required SDK components:
+    - Android SDK Platform 36 (compileSdk)
+    - Android SDK Build-Tools
+    - Android SDK Platform-Tools
+    
+    Set `ANDROID_HOME` environment variable:
+    ```bash
+    # macOS/Linux
+    export ANDROID_HOME=$HOME/Library/Android/sdk
+    export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
+    
+    # Windows
+    setx ANDROID_HOME "%LOCALAPPDATA%\Android\Sdk"
+    ```
+  </Step>
+
+  <Step title="Xcode (for iOS builds - macOS only)">
+    Install [Xcode](https://developer.apple.com/xcode/) from the Mac App Store.
+    
+    After installation, accept the license and install command-line tools:
+    ```bash
+    sudo xcodebuild -license accept
+    xcode-select --install
+    ```
+  </Step>
+
+  <Step title="Git">
+    Install Git from [git-scm.com](https://git-scm.com/) or use your system's package manager.
+    
+    ```bash
+    # macOS
+    brew install git
+    
+    # Ubuntu/Debian
+    sudo apt-get install git
+    
+    # Windows
+    # Download installer from git-scm.com
+    ```
+  </Step>
+</Steps>
+
+## Cloning the Repository
+
+Clone the GreenhouseAdmin repository to your local machine:
+
+```bash
+git clone <repository-url>
+cd GreenhouseAdmin
+```
+
+## Project Configuration
+
+### Environment Variables
+
+The project uses `local.properties` to configure environment-specific settings. This file is gitignored and must be created locally.
+
+<Warning>
+  Never commit `local.properties` to version control. It may contain sensitive API URLs and keys.
+</Warning>
+
+Create `local.properties` in the project root:
+
+```properties
+# local.properties
+API_BASE_URL=https://api-dev.example.com/api/v1/
+```
+
+<Tip>
+  The `API_BASE_URL` should include the full path including `/api/v1/` suffix. This value is injected into the application via BuildKonfig at compile time.
+</Tip>
+
+### Gradle Configuration
+
+The project comes with pre-configured Gradle settings in `gradle.properties`:
+
+```properties
+# Kotlin
+kotlin.code.style=official
+kotlin.daemon.jvmargs=-Xmx4092M
+
+# Gradle
+org.gradle.jvmargs=-Xmx4096M -Dfile.encoding=UTF-8
+org.gradle.configuration-cache=true
+org.gradle.caching=true
+
+# Android
+android.nonTransitiveRClass=true
+android.useAndroidX=true
+```
+
+<Tip>
+  These settings allocate 4GB RAM to Gradle and the Kotlin daemon. Adjust if needed based on your system resources.
+</Tip>
+
+## Installing Dependencies
+
+The project uses Gradle wrapper, so no global Gradle installation is required.
+
+### First-Time Setup
+
+Run the following commands to download dependencies and set up the project:
+
+<CodeGroup>
+```bash macOS/Linux
+# Make gradlew executable
+chmod +x gradlew
+
+# Sync dependencies
+./gradlew --refresh-dependencies
+```
+
+```bash Windows
+# Sync dependencies
+.\gradlew.bat --refresh-dependencies
+```
+</CodeGroup>
+
+### Yarn Lock Files (Important for Web targets)
+
+After any dependency changes, you must upgrade Yarn lock files for JavaScript and WebAssembly targets:
+
+<CodeGroup>
+```bash macOS/Linux
+./gradlew kotlinUpgradeYarnLock        # JS target
+./gradlew kotlinWasmUpgradeYarnLock    # Wasm target
+```
+
+```bash Windows
+.\gradlew.bat kotlinUpgradeYarnLock        # JS target
+.\gradlew.bat kotlinWasmUpgradeYarnLock    # Wasm target
+```
+</CodeGroup>
+
+<Warning>
+  Failing to upgrade Yarn lock files after dependency changes will cause build failures for Web targets.
+</Warning>
+
+## IDE Setup
+
+The recommended IDEs for Kotlin Multiplatform development are:
+
+### IntelliJ IDEA (Recommended)
+
+1. Download [IntelliJ IDEA](https://www.jetbrains.com/idea/) (Community or Ultimate)
+2. Open the project by selecting the root directory
+3. IntelliJ will automatically detect it as a Gradle project
+4. Wait for Gradle sync to complete
+5. Install recommended plugins if prompted:
+   - Kotlin Multiplatform
+   - Compose Multiplatform
+
+### Android Studio
+
+1. Download [Android Studio](https://developer.android.com/studio)
+2. Open the project by selecting the root directory
+3. Ensure the Kotlin Multiplatform plugin is installed:
+   - Go to Settings → Plugins
+   - Search for "Kotlin Multiplatform"
+   - Install if not already installed
+4. Wait for Gradle sync to complete
+
+## Verifying Your Setup
+
+Verify your environment is correctly configured by running a simple build:
+
+<CodeGroup>
+```bash macOS/Linux
+# Build all targets
+./gradlew build
+
+# Or build specific target
+./gradlew :composeApp:wasmJsBrowserDevelopmentRun
+```
+
+```bash Windows
+# Build all targets
+.\gradlew.bat build
+
+# Or build specific target
+.\gradlew.bat :composeApp:wasmJsBrowserDevelopmentRun
+```
+</CodeGroup>
+
+If the build succeeds, your environment is ready for development!
+
+## Project Structure Overview
+
+Understand the project structure before you start coding:
+
+```
+GreenhouseAdmin/
+├── composeApp/              # Main application module
+│   ├── src/
+│   │   ├── commonMain/      # Shared code (all platforms)
+│   │   ├── androidMain/     # Android-specific code
+│   │   ├── iosMain/         # iOS-specific code
+│   │   ├── jvmMain/         # Desktop-specific code
+│   │   ├── jsMain/          # JavaScript target code
+│   │   ├── wasmJsMain/      # WebAssembly target code
+│   │   └── commonTest/      # Shared tests
+│   └── build.gradle.kts     # Module build configuration
+├── gradle/                  # Gradle wrapper and version catalog
+│   └── libs.versions.toml   # Dependency versions
+├── build.gradle.kts         # Root build configuration
+├── local.properties         # Local environment config (create this)
+└── gradle.properties        # Gradle settings
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Building" icon="hammer" href="/development/building">
+    Learn how to build for different platforms
+  </Card>
+  
+  <Card title="Testing" icon="vial" href="/development/testing">
+    Understand the testing structure and best practices
+  </Card>
+  
+  <Card title="Deployment" icon="rocket" href="/development/deployment">
+    Deploy your application using Docker and CI/CD
+  </Card>
+  
+  <Card title="Architecture" icon="diagram-project" href="/concepts/architecture">
+    Explore the MVVM architecture and design patterns
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+### Gradle Daemon Issues
+
+If you encounter issues with the Gradle daemon:
+
+```bash
+# Stop all Gradle daemons
+./gradlew --stop
+
+# Clear Gradle cache
+rm -rf ~/.gradle/caches/
+```
+
+### Dependency Resolution Failures
+
+```bash
+# Clear dependency cache and refresh
+./gradlew clean --refresh-dependencies
+```
+
+### Out of Memory Errors
+
+Increase memory allocation in `gradle.properties`:
+
+```properties
+org.gradle.jvmargs=-Xmx8192M -Dfile.encoding=UTF-8
+kotlin.daemon.jvmargs=-Xmx8192M
+```
+
+### iOS Build Failures (macOS)
+
+Ensure Xcode command-line tools are properly configured:
+
+```bash
+sudo xcode-select --reset
+sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+```

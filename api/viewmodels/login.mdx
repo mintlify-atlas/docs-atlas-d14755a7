@@ -1,0 +1,498 @@
+---
+title: LoginViewModel
+description: Manages authentication state and login flow with session validation
+---
+
+## Overview
+
+The `LoginViewModel` manages the authentication flow for the application, including login form state, session validation, and navigation after successful authentication. It follows the MVVM+MVI architectural pattern.
+
+Source: `viewmodel/LoginViewModel.kt:15`
+
+```kotlin
+class LoginViewModel(
+    private val authRepository: AuthRepository
+) : ViewModel()
+```
+
+## UI State
+
+The ViewModel exposes a `LoginUiState` that represents the complete login screen state.
+
+Source: `viewmodel/LoginUiState.kt:7`
+
+```kotlin
+data class LoginUiState(
+    val username: String = "",
+    val password: String = "",
+    val isPasswordVisible: Boolean = false,
+    val isLoading: Boolean = false,
+    val isValidatingSession: Boolean = false,
+    val error: String? = null,
+    val isLoginSuccessful: Boolean = false
+)
+```
+
+### State Fields
+
+<ResponseField name="username" type="String">
+  Current value of the username input field
+</ResponseField>
+
+<ResponseField name="password" type="String">
+  Current value of the password input field
+</ResponseField>
+
+<ResponseField name="isPasswordVisible" type="Boolean">
+  Whether the password field is showing plain text (true) or masked (false)
+</ResponseField>
+
+<ResponseField name="isLoading" type="Boolean">
+  Loading state during login attempt
+</ResponseField>
+
+<ResponseField name="isValidatingSession" type="Boolean">
+  Loading state during session validation on app start
+</ResponseField>
+
+<ResponseField name="error" type="String?">
+  Error message to display if login fails
+</ResponseField>
+
+<ResponseField name="isLoginSuccessful" type="Boolean">
+  Flag indicating successful login, triggers navigation to main screen
+</ResponseField>
+
+### Computed Properties
+
+The `LoginUiState` provides a computed property for form validation:
+
+<ResponseField name="isLoginEnabled" type="Boolean">
+  Returns true if the login button should be enabled. Requires non-blank username and password, and no ongoing loading operations.
+</ResponseField>
+
+```kotlin
+val isLoginEnabled: Boolean
+    get() = username.isNotBlank() && 
+            password.isNotBlank() && 
+            !isLoading && 
+            !isValidatingSession
+```
+
+## Events
+
+All user interactions are handled through the `LoginEvent` sealed interface.
+
+Source: `viewmodel/LoginEvent.kt:7`
+
+```kotlin
+sealed interface LoginEvent {
+    /**
+     * User typed in the username field.
+     */
+    data class OnUsernameChanged(val username: String) : LoginEvent
+
+    /**
+     * User typed in the password field.
+     */
+    data class OnPasswordChanged(val password: String) : LoginEvent
+
+    /**
+     * User clicked the login button.
+     */
+    data object OnLoginClicked : LoginEvent
+
+    /**
+     * User toggled password visibility.
+     */
+    data object OnTogglePasswordVisibility : LoginEvent
+
+    /**
+     * Dismiss current error message.
+     */
+    data object DismissError : LoginEvent
+
+    /**
+     * Navigation to main screen completed, reset navigation flag.
+     */
+    data object OnNavigationHandled : LoginEvent
+}
+```
+
+### Event Descriptions
+
+**OnUsernameChanged**
+- Updates username field value
+- Clears any existing error message
+
+**OnPasswordChanged**
+- Updates password field value
+- Clears any existing error message
+
+**OnLoginClicked**
+- Validates form is enabled
+- Initiates login attempt with `AuthRepository`
+- Trims username whitespace before submission
+
+**OnTogglePasswordVisibility**
+- Toggles between plain text and masked password display
+- Does not affect the password value itself
+
+**DismissError**
+- Clears the current error message
+- Allows user to retry login
+
+**OnNavigationHandled**
+- Resets the `isLoginSuccessful` flag after navigation completes
+- Prevents repeated navigation triggers
+
+## Methods
+
+### onEvent
+
+```kotlin
+fun onEvent(event: LoginEvent)
+```
+
+Single entry point for all user interactions following MVI pattern. Dispatches events to appropriate private handlers.
+
+### State Management
+
+The ViewModel uses Kotlin `StateFlow` for reactive state management:
+
+```kotlin
+val uiState: StateFlow<LoginUiState>
+```
+
+Exposed as an immutable `StateFlow` for UI consumption:
+
+```kotlin
+private val _uiState = MutableStateFlow(LoginUiState())
+val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
+```
+
+## Session Validation
+
+The ViewModel automatically validates existing sessions on initialization:
+
+```kotlin
+init {
+    validateSession()
+}
+
+private fun validateSession() {
+    viewModelScope.launch {
+        // First check if there's a token at all
+        if (!authRepository.isAuthenticated()) {
+            return@launch
+        }
+
+        // Token exists, validate with backend
+        _uiState.update { it.copy(isValidatingSession = true) }
+
+        val isValid = authRepository.validateSession()
+
+        _uiState.update {
+            it.copy(
+                isValidatingSession = false,
+                isLoginSuccessful = isValid
+            )
+        }
+    }
+}
+```
+
+### Session Validation Flow
+
+1. Check if authentication token exists locally
+2. If no token, skip validation (user needs to log in)
+3. If token exists, validate with backend API
+4. If valid, set `isLoginSuccessful = true` to navigate to main screen
+5. If invalid/expired, user must log in again
+
+## Login Flow
+
+The login process follows these steps:
+
+```kotlin
+private fun performLogin() {
+    val currentState = _uiState.value
+    if (!currentState.isLoginEnabled) return
+
+    viewModelScope.launch {
+        _uiState.update { it.copy(isLoading = true, error = null) }
+
+        authRepository.login(
+            username = currentState.username.trim(),
+            password = currentState.password
+        )
+            .onSuccess {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        isLoginSuccessful = true
+                    )
+                }
+            }
+            .onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = error.message ?: "Login failed. Please try again."
+                    )
+                }
+            }
+    }
+}
+```
+
+### Login Success Handling
+
+When `isLoginSuccessful` becomes `true`, the UI layer should:
+1. Navigate to the main screen
+2. Call `onEvent(LoginEvent.OnNavigationHandled)` to reset the flag
+
+## Usage Example
+
+```kotlin
+import org.koin.compose.viewmodel.koinViewModel
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
+
+@Composable
+fun LoginScreen(
+    onLoginSuccess: () -> Unit
+) {
+    val viewModel: LoginViewModel = koinViewModel()
+    val state by viewModel.uiState.collectAsState()
+    
+    // Handle successful login navigation
+    LaunchedEffect(state.isLoginSuccessful) {
+        if (state.isLoginSuccessful) {
+            onLoginSuccess()
+            viewModel.onEvent(LoginEvent.OnNavigationHandled)
+        }
+    }
+    
+    // Show loading during session validation
+    if (state.isValidatingSession) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        // Logo or branding
+        Image(
+            painter = painterResource(Res.drawable.logo),
+            contentDescription = "App Logo",
+            modifier = Modifier.size(120.dp)
+        )
+        
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        // Username field
+        OutlinedTextField(
+            value = state.username,
+            onValueChange = { 
+                viewModel.onEvent(LoginEvent.OnUsernameChanged(it)) 
+            },
+            label = { Text("Username") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Text,
+                imeAction = ImeAction.Next
+            )
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Password field
+        OutlinedTextField(
+            value = state.password,
+            onValueChange = { 
+                viewModel.onEvent(LoginEvent.OnPasswordChanged(it)) 
+            },
+            label = { Text("Password") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            visualTransformation = if (state.isPasswordVisible) {
+                VisualTransformation.None
+            } else {
+                PasswordVisualTransformation()
+            },
+            trailingIcon = {
+                IconButton(
+                    onClick = { 
+                        viewModel.onEvent(LoginEvent.OnTogglePasswordVisibility) 
+                    }
+                ) {
+                    Icon(
+                        imageVector = if (state.isPasswordVisible) {
+                            Icons.Default.Visibility
+                        } else {
+                            Icons.Default.VisibilityOff
+                        },
+                        contentDescription = "Toggle password visibility"
+                    )
+                }
+            },
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    if (state.isLoginEnabled) {
+                        viewModel.onEvent(LoginEvent.OnLoginClicked)
+                    }
+                }
+            )
+        )
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        // Error message
+        state.error?.let { error ->
+            Text(
+                text = error,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+        }
+        
+        // Login button
+        Button(
+            onClick = { 
+                viewModel.onEvent(LoginEvent.OnLoginClicked) 
+            },
+            enabled = state.isLoginEnabled,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+        ) {
+            if (state.isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            } else {
+                Text(
+                    "Login",
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+        }
+    }
+}
+```
+
+## State Flow Pattern
+
+### Field Updates
+
+Field changes clear existing errors for better UX:
+
+```kotlin
+private fun updateUsername(username: String) {
+    _uiState.update { it.copy(username = username, error = null) }
+}
+
+private fun updatePassword(password: String) {
+    _uiState.update { it.copy(password = password, error = null) }
+}
+```
+
+### Password Visibility Toggle
+
+```kotlin
+private fun togglePasswordVisibility() {
+    _uiState.update { it.copy(isPasswordVisible = !it.isPasswordVisible) }
+}
+```
+
+## Error Handling
+
+Errors from the repository are captured and displayed:
+
+```kotlin
+authRepository.login(username, password)
+    .onSuccess {
+        _uiState.update { it.copy(isLoginSuccessful = true) }
+    }
+    .onFailure { error ->
+        _uiState.update {
+            it.copy(
+                error = error.message ?: "Login failed. Please try again."
+            )
+        }
+    }
+```
+
+## Security Considerations
+
+1. **Password Trimming** - Only username is trimmed, password is sent as-is to preserve intentional spaces
+2. **Session Validation** - Existing tokens are validated with the backend, not just checked for existence
+3. **Error Messages** - Generic error message on failure to avoid revealing whether username exists
+4. **State Clearing** - Errors are cleared when user types to allow retry without dismissing
+
+## Dependency Injection
+
+The ViewModel is provided via Koin:
+
+```kotlin
+// In di/PresentationModule.kt
+val presentationModule = module {
+    viewModelOf(::LoginViewModel)
+}
+```
+
+## Related Types
+
+- `AuthRepository` - Repository interface for authentication operations
+- `LoginUiState` - Immutable state data class
+- `LoginEvent` - Sealed interface for user events
+
+## Navigation Integration
+
+Typical navigation setup in the app:
+
+```kotlin
+@Composable
+fun AppNavigation() {
+    val navController = rememberNavController()
+    
+    NavHost(
+        navController = navController,
+        startDestination = "login"
+    ) {
+        composable("login") {
+            LoginScreen(
+                onLoginSuccess = {
+                    navController.navigate("dashboard") {
+                        popUpTo("login") { inclusive = true }
+                    }
+                }
+            )
+        }
+        
+        composable("dashboard") {
+            DashboardScreen()
+        }
+        
+        // Other screens...
+    }
+}
+```

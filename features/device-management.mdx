@@ -1,0 +1,361 @@
+---
+title: Device Management
+description: Manage sensors and actuators for monitoring and controlling greenhouse environments
+---
+
+## Overview
+
+Device Management enables you to configure and monitor all sensors and actuators deployed in greenhouse facilities. Devices are the hardware components that collect environmental data (sensors) and control greenhouse systems (actuators). Proper device configuration is essential for accurate monitoring and automated control.
+
+<Note>
+  Devices are assigned to **sectors** (zones within greenhouses) and belong to a specific client. Each device has a category, type, and measurement unit.
+</Note>
+
+## Device Categories
+
+There are two main categories of devices:
+
+<CardGroup cols={2}>
+  <Card title="Sensors" icon="sensor">
+    **Monitoring Devices**
+    
+    Collect environmental data such as:
+    - Temperature readings
+    - Humidity levels
+    - Soil moisture
+    - Light intensity
+    - CO₂ concentration
+    - pH levels
+  </Card>
+  
+  <Card title="Actuators" icon="gears">
+    **Control Devices**
+    
+    Control greenhouse systems:
+    - Irrigation valves
+    - Ventilation fans
+    - Heating systems
+    - Shade screens
+    - Lighting systems
+    - CO₂ injectors
+  </Card>
+</CardGroup>
+
+## Accessing Device Management
+
+To manage devices:
+
+1. Navigate to a **client detail** screen
+2. Select the **"Devices"** tab
+3. View all devices for this client across all greenhouses and sectors
+
+## Device Properties
+
+Each device has the following attributes:
+
+### System Identifiers
+- **Code**: Unique system-generated identifier
+- **ID**: Internal database identifier
+- **Tenant ID**: Client/owner reference
+
+### Location and Assignment
+- **Sector**: The greenhouse zone where the device is installed
+- **Sector Code**: Quick reference to the sector
+
+### Device Classification
+- **Category**: Sensor or Actuator
+- **Type**: Specific device type (e.g., "Temperature Sensor", "Irrigation Valve")
+- **Unit**: Measurement unit for the device (e.g., "°C", "%", "ppm")
+
+### Device Information
+- **Name**: Optional custom name for easy identification
+- **Status**: Active or Inactive
+
+### Timestamps
+- **Created At**: When the device was added to the system
+- **Updated At**: Last modification date
+
+## Creating a New Device
+
+Follow these steps to add a device to the system:
+
+<Steps>
+  <Step title="Navigate to Devices">
+    Go to the client detail screen and open the **"Devices"** tab
+  </Step>
+  
+  <Step title="Open Device Form">
+    Click the **"Add Device"** or **"+"** button to open the device creation dialog
+  </Step>
+  
+  <Step title="Select Location">
+    Choose the **Sector** where this device is installed. The dropdown shows all sectors for the current client.
+  </Step>
+  
+  <Step title="Choose Device Category">
+    Select the device category:
+    - **Sensor** (Category ID: 1) - For monitoring devices
+    - **Actuator** (Category ID: 2) - For control devices
+  </Step>
+  
+  <Step title="Select Device Type">
+    Choose the specific device type from the dropdown. The list is filtered based on the selected category:
+    - For sensors: Temperature, Humidity, Soil Moisture, Light, CO₂, pH, etc.
+    - For actuators: Valve, Fan, Heater, Shade, Light, Pump, etc.
+    
+    <Note>
+      Device types are predefined in the system catalog and can be managed in the Settings section.
+    </Note>
+  </Step>
+  
+  <Step title="Configure Measurement Unit">
+    Select the appropriate measurement unit:
+    - Temperature: °C, °F, K
+    - Humidity: %, g/m³
+    - Pressure: Pa, bar, psi
+    - Concentration: ppm, mg/L
+    - Flow: L/min, m³/h
+    
+    The system may suggest a default unit based on the device type.
+  </Step>
+  
+  <Step title="Add Custom Name (Optional)">
+    Enter a custom name to help identify this specific device, such as:
+    - "North Wall Temperature"
+    - "Zone A Irrigation Valve"
+    - "Main Ventilation Fan"
+    
+    If no name is provided, the device will be identified by its type and code.
+  </Step>
+  
+  <Step title="Set Status">
+    Choose the device status:
+    - **Active**: Device is operational and collecting/sending data
+    - **Inactive**: Device is offline, disabled, or under maintenance
+  </Step>
+  
+  <Step title="Submit">
+    Click **"Create"** to save the device. The system will:
+    - Generate a unique device code
+    - Assign the device to the selected sector
+    - Add it to the devices list
+    - Make it available for monitoring and control
+  </Step>
+</Steps>
+
+<Tip>
+  When creating multiple similar devices, use descriptive names that indicate their location or purpose to make them easy to identify in lists and reports.
+</Tip>
+
+## Viewing Device Information
+
+The devices table displays comprehensive information:
+
+| Column | Description |
+|--------|-------------|
+| **Code** | Unique device identifier |
+| **Name/Type** | Custom name or device type |
+| **Sector** | Zone where device is installed |
+| **Category** | Sensor or Actuator badge |
+| **Type** | Specific device type |
+| **Unit** | Measurement unit symbol |
+| **Status** | Active/Inactive with color indicator |
+| **Actions** | Edit and delete buttons |
+
+### Visual Indicators
+
+<Accordion title="Category Badges">
+  - **Sensor**: Displayed with a sensor icon
+  - **Actuator**: Displayed with a control/gear icon
+  
+  This helps quickly identify the device purpose at a glance.
+</Accordion>
+
+<Accordion title="Status Colors">
+  - **Active** (Green): Device is operational
+  - **Inactive** (Red): Device is offline or disabled
+</Accordion>
+
+## Editing Device Configuration
+
+To update a device:
+
+<Steps>
+  <Step title="Locate the Device">
+    Find the device in the Devices tab list
+  </Step>
+  
+  <Step title="Open Edit Dialog">
+    Click the **edit icon** (pencil) in the device's action column
+  </Step>
+  
+  <Step title="Modify Settings">
+    Update any of the following:
+    - Sector assignment (move device to different zone)
+    - Device category (Sensor ↔ Actuator)
+    - Device type
+    - Measurement unit
+    - Custom name
+    - Active/Inactive status
+  </Step>
+  
+  <Step title="Save Changes">
+    Click **"Update"** to save the modifications
+  </Step>
+</Steps>
+
+<Warning>
+  Changing a device's category or type may affect historical data interpretation. Ensure the change is intentional and necessary.
+</Warning>
+
+## Device Status Management
+
+### Active Devices
+
+Set devices to **Active** when:
+- The device is installed and operational
+- You want to collect sensor readings
+- Actuators should respond to control commands
+- The device is included in monitoring and alerts
+
+### Inactive Devices
+
+Set devices to **Inactive** when:
+- The device is temporarily removed for maintenance
+- Hardware is being repaired or replaced
+- You want to exclude the device from active monitoring
+- The device is being decommissioned
+
+<Note>
+  Inactive devices remain in the system with their historical data but don't participate in active monitoring or control operations.
+</Note>
+
+## Device Types and Units
+
+The system includes a comprehensive catalog of device types and measurement units:
+
+### Common Sensor Types
+- **Temperature**: Ambient air, soil, water temperature
+- **Humidity**: Relative humidity, absolute humidity
+- **Light**: PAR, lux, PPFD sensors
+- **Moisture**: Soil moisture, substrate moisture
+- **Air Quality**: CO₂, O₂, VOC sensors
+- **Water Quality**: pH, EC, TDS sensors
+
+### Common Actuator Types
+- **Climate Control**: Heaters, coolers, fans, vents
+- **Irrigation**: Valves, pumps, drippers
+- **Lighting**: Growth lights, supplemental lighting
+- **Environmental**: Shade screens, misting systems, CO₂ injectors
+
+### Measurement Units
+- **Temperature**: °C (Celsius), °F (Fahrenheit), K (Kelvin)
+- **Humidity**: % (percentage), g/m³
+- **Light**: µmol/m²/s, lux, W/m²
+- **Pressure**: Pa, kPa, bar, psi
+- **Concentration**: ppm, ppb, mg/L
+- **Flow Rate**: L/min, L/h, m³/h
+- **Electrical**: mS/cm, dS/m (for EC)
+
+<Tip>
+  Device types and units are managed in the **Settings** section under their respective catalog tabs.
+</Tip>
+
+## Sector Assignment
+
+Devices must be assigned to a sector (greenhouse zone):
+
+1. **Sectors define location**: Each sector belongs to a greenhouse
+2. **Devices inherit context**: The device's greenhouse is determined by its sector
+3. **Logical grouping**: Devices in the same sector share location and often control logic
+
+### Moving Devices Between Sectors
+
+You can reassign devices to different sectors when:
+- Reorganizing greenhouse zones
+- Moving physical hardware
+- Adjusting monitoring coverage
+
+To move a device, edit it and select a new sector from the dropdown.
+
+## Deleting Devices
+
+To remove a device from the system:
+
+<Warning>
+  Deleting a device will remove all associated historical sensor data and readings. This action cannot be undone.
+</Warning>
+
+<Steps>
+  <Step title="Initiate Deletion">
+    Click the **delete icon** (trash can) in the device's action column
+  </Step>
+  
+  <Step title="Confirm Deletion">
+    Review the confirmation dialog showing the device code, name/type, and sector
+  </Step>
+  
+  <Step title="Complete Deletion">
+    Click **"Confirm Delete"** to permanently remove the device and its data
+  </Step>
+</Steps>
+
+<Tip>
+  For devices that are temporarily out of service, set them to **Inactive** instead of deleting to preserve historical data.
+</Tip>
+
+## Common Workflows
+
+### Initial Device Deployment
+
+1. **Plan the layout**: Determine sensor/actuator locations
+2. **Create sectors**: Set up greenhouse zones first
+3. **Add devices**: Create each device with proper category, type, and unit
+4. **Use descriptive names**: Name devices by location ("North Wall Temp")
+5. **Verify status**: Ensure all devices are set to Active
+6. **Test connectivity**: Confirm devices are reporting data
+
+### Device Maintenance
+
+**Before Maintenance:**
+1. Set device to Inactive
+2. Note the device code and configuration
+3. Perform physical maintenance
+
+**After Maintenance:**
+1. Verify device is functioning
+2. Set device back to Active
+3. Monitor for proper readings
+
+### Replacing a Failed Device
+
+**Option 1: Update Existing**
+1. Edit the device record
+2. Update type/unit if hardware changed
+3. Note the replacement in custom name
+4. Set to Active
+
+**Option 2: Create New**
+1. Set old device to Inactive
+2. Create new device record
+3. Reference old device code in notes
+
+## Best Practices
+
+1. **Consistent Naming**: Use a naming convention like "[Location] - [Type]" (e.g., "Zone A - Temp Sensor")
+2. **Accurate Categories**: Choose the correct category (Sensor vs Actuator) from the start
+3. **Proper Units**: Select measurement units that match your physical devices
+4. **Status Hygiene**: Keep device status current - set to Inactive when not in use
+5. **Logical Grouping**: Assign devices to the correct sectors for proper organization
+6. **Documentation**: Use custom names to add context and location information
+7. **Regular Audits**: Periodically review device list to remove obsolete entries or update inactive devices
+
+## Integration with Other Features
+
+Device management integrates with:
+
+- **Sectors**: Devices are assigned to sectors within greenhouses
+- **Settings**: Environmental parameters reference device types and units
+- **Alerts**: Monitoring rules use device readings to trigger notifications
+- **Dashboard**: Device counts and status appear in summary statistics
+- **Catalogs**: Device types, categories, and units are managed in Settings

@@ -1,0 +1,540 @@
+---
+title: iOS Platform
+description: Build and deploy GreenhouseAdmin to iOS devices and simulators
+---
+
+# iOS Platform
+
+Build and deploy GreenhouseAdmin as a native iOS application. This guide covers Xcode setup, framework generation, and iOS-specific configuration.
+
+## Overview
+
+The iOS platform uses:
+- **Framework**: ComposeApp (static framework)
+- **Targets**: `iosArm64` (devices), `iosSimulatorArm64` (M1+ simulators)
+- **HTTP Engine**: Darwin (native URLSession)
+- **Minimum iOS**: 14.0+
+- **UI Integration**: SwiftUI wrapper around Compose Multiplatform
+
+<Note>
+  iOS requires macOS and Xcode for development and building.
+</Note>
+
+## Prerequisites
+
+<Steps>
+  <Step title="Install Xcode">
+    Download and install Xcode from the Mac App Store (Xcode 15.0+).
+
+    Verify installation:
+    ```bash
+    xcodebuild -version
+    ```
+  </Step>
+
+  <Step title="Install Command Line Tools">
+    Install Xcode command-line tools:
+
+    ```bash
+    xcode-select --install
+    ```
+  </Step>
+
+  <Step title="Accept Xcode License">
+    Accept the Xcode license agreement:
+
+    ```bash
+    sudo xcodebuild -license accept
+    ```
+  </Step>
+
+  <Step title="Install CocoaPods (Optional)">
+    For dependency management (if needed):
+
+    ```bash
+    sudo gem install cocoapods
+    ```
+  </Step>
+</Steps>
+
+## Configuration
+
+### iOS Framework Setup
+
+The Kotlin Multiplatform code is compiled into a static iOS framework:
+
+```kotlin composeApp/build.gradle.kts
+listOf(
+    iosArm64(),        // Physical devices
+    iosSimulatorArm64() // M1/M2/M3 Mac simulators
+).forEach { iosTarget ->
+    iosTarget.binaries.framework {
+        baseName = "ComposeApp"
+        isStatic = true
+    }
+}
+```
+
+### iOS-Specific Dependencies
+
+The iOS platform uses the Darwin engine for Ktor networking:
+
+```kotlin composeApp/build.gradle.kts
+iosMain.dependencies {
+    // Ktor - Darwin engine for iOS (uses URLSession)
+    implementation(libs.ktor.client.darwin)
+}
+```
+
+### Dependency Injection (Koin)
+
+iOS requires platform-specific initialization in the SwiftUI app:
+
+```swift iosApp/iOSApp.swift
+import SwiftUI
+import ComposeApp
+
+@main
+struct iOSApp: App {
+    init() {
+        MainViewControllerKt.doInitKoin()
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
+```
+
+The `doInitKoin()` function is exposed from Kotlin:
+
+```kotlin iosMain/.../MainViewController.kt
+fun doInitKoin() {
+    initKoin()
+}
+```
+
+## Development
+
+### Running on Simulator
+
+<Tabs>
+  <Tab title="Xcode">
+    <Steps>
+      <Step title="Open iOS Project">
+        Open the `iosApp` directory in Xcode:
+
+        ```bash
+        open iosApp/iosApp.xcodeproj
+        ```
+      </Step>
+
+      <Step title="Select Simulator">
+        Choose a simulator from the device dropdown (e.g., iPhone 15 Pro).
+      </Step>
+
+      <Step title="Build and Run">
+        Click the **Run** button (⌘R) or use Product > Run.
+      </Step>
+    </Steps>
+
+    <Note>
+      The first build may take several minutes as Gradle compiles the Kotlin framework.
+    </Note>
+  </Tab>
+
+  <Tab title="Command Line">
+    <Steps>
+      <Step title="Generate Framework">
+        Build the iOS framework:
+
+        ```bash
+        ./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64
+        ```
+      </Step>
+
+      <Step title="Build iOS App">
+        Build the app using `xcodebuild`:
+
+        ```bash
+        cd iosApp
+        xcodebuild -project iosApp.xcodeproj \
+          -scheme iosApp \
+          -sdk iphonesimulator \
+          -configuration Debug
+        ```
+      </Step>
+
+      <Step title="Launch Simulator">
+        Start a simulator and install:
+
+        ```bash
+        xcrun simctl boot "iPhone 15 Pro"
+        xcrun simctl install booted build/Debug-iphonesimulator/iosApp.app
+        xcrun simctl launch booted com.apptolast.greenhouse.admin
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+### Running on Physical Device
+
+<Steps>
+  <Step title="Configure Signing">
+    In Xcode:
+    1. Select the **iosApp** target
+    2. Go to **Signing & Capabilities**
+    3. Select your **Team**
+    4. Ensure **Automatically manage signing** is enabled
+  </Step>
+
+  <Step title="Generate Device Framework">
+    Build the framework for physical devices:
+
+    ```bash
+    ./gradlew :composeApp:linkDebugFrameworkIosArm64
+    ```
+  </Step>
+
+  <Step title="Connect Device">
+    Connect your iPhone/iPad via USB and select it in Xcode's device dropdown.
+  </Step>
+
+  <Step title="Build and Run">
+    Click the **Run** button (⌘R) in Xcode.
+
+    <Note>
+      On first run, you may need to trust the developer certificate on the device:
+      **Settings > General > VPN & Device Management**
+    </Note>
+  </Step>
+</Steps>
+
+### Viewing Logs
+
+Monitor iOS logs:
+
+<Tabs>
+  <Tab title="Xcode">
+    Logs appear in the bottom panel: **View > Debug Area > Activate Console** (⇧⌘C)
+  </Tab>
+
+  <Tab title="Console.app">
+    Use macOS Console app:
+    1. Open **Console.app**
+    2. Select your device or simulator
+    3. Filter by process: `iosApp`
+  </Tab>
+
+  <Tab title="Command Line">
+    ```bash
+    xcrun simctl spawn booted log stream --predicate 'process == "iosApp"'
+    ```
+  </Tab>
+</Tabs>
+
+## Building for Distribution
+
+### Archive Build
+
+<Steps>
+  <Step title="Select Generic iOS Device">
+    In Xcode, select **Any iOS Device (arm64)** from the device dropdown.
+  </Step>
+
+  <Step title="Create Archive">
+    Go to **Product > Archive** (or ⇧⌘B for build only).
+
+    This creates an archive in the Xcode Organizer.
+  </Step>
+
+  <Step title="Distribute Archive">
+    In the Organizer:
+    1. Select the archive
+    2. Click **Distribute App**
+    3. Choose distribution method:
+       - **App Store Connect**: For App Store release
+       - **Ad Hoc**: For internal testing (up to 100 devices)
+       - **Enterprise**: For enterprise distribution
+       - **Development**: For development testing
+  </Step>
+</Steps>
+
+### Command-Line Archive
+
+<Steps>
+  <Step title="Build Release Framework">
+    Generate the release framework:
+
+    ```bash
+    ./gradlew :composeApp:linkReleaseFrameworkIosArm64
+    ```
+  </Step>
+
+  <Step title="Create Archive">
+    Build and archive:
+
+    ```bash
+    cd iosApp
+    xcodebuild archive \
+      -project iosApp.xcodeproj \
+      -scheme iosApp \
+      -sdk iphoneos \
+      -configuration Release \
+      -archivePath build/iosApp.xcarchive
+    ```
+  </Step>
+
+  <Step title="Export IPA">
+    Export the IPA file:
+
+    ```bash
+    xcodebuild -exportArchive \
+      -archivePath build/iosApp.xcarchive \
+      -exportPath build/iosApp \
+      -exportOptionsPlist ExportOptions.plist
+    ```
+
+    Create `ExportOptions.plist` with your distribution method:
+    ```xml
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+        <key>method</key>
+        <string>app-store</string>
+        <key>teamID</key>
+        <string>YOUR_TEAM_ID</string>
+    </dict>
+    </plist>
+    ```
+  </Step>
+</Steps>
+
+## SwiftUI Integration
+
+The iOS app wraps the Compose Multiplatform UI in SwiftUI:
+
+```swift iosApp/ContentView.swift
+import SwiftUI
+import ComposeApp
+
+struct ContentView: View {
+    var body: some View {
+        ComposeView()
+            .ignoresSafeArea(.all)
+    }
+}
+
+struct ComposeView: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> UIViewController {
+        return MainViewControllerKt.createMainViewController()
+    }
+    
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
+}
+```
+
+Expose the Compose UI from Kotlin:
+
+```kotlin iosMain/.../MainViewController.kt
+fun createMainViewController(): UIViewController {
+    return ComposeUIViewController {
+        App()  // Shared Compose UI from commonMain
+    }
+}
+```
+
+## iOS-Specific Features
+
+### Safe Area Handling
+
+Handle iOS safe areas in Compose:
+
+```kotlin iosMain/.../SafeAreaInsets.kt
+@Composable
+actual fun getSystemInsets(): WindowInsets {
+    val safeArea = LocalSafeArea.current
+    return WindowInsets(
+        left = safeArea.left.dp,
+        top = safeArea.top.dp,
+        right = safeArea.right.dp,
+        bottom = safeArea.bottom.dp
+    )
+}
+```
+
+### Native iOS APIs
+
+Access iOS-specific APIs using expect/actual:
+
+```kotlin iosMain/.../PlatformUtils.kt
+import platform.UIKit.UIDevice
+import platform.Foundation.NSUUID
+
+actual fun getDeviceId(): String {
+    return UIDevice.currentDevice.identifierForVendor?.UUIDString ?: ""
+}
+
+actual fun shareText(text: String) {
+    val activityViewController = UIActivityViewController(
+        activityItems = listOf(text),
+        applicationActivities = null
+    )
+    // Present activity view controller
+}
+```
+
+### Info.plist Configuration
+
+Configure app permissions and settings:
+
+```xml iosApp/Info.plist
+<key>NSAppTransportSecurity</key>
+<dict>
+    <key>NSAllowsArbitraryLoads</key>
+    <false/>
+    <key>NSExceptionDomains</key>
+    <dict>
+        <key>api.example.com</key>
+        <dict>
+            <key>NSExceptionAllowsInsecureHTTPLoads</key>
+            <false/>
+            <key>NSIncludesSubdomains</key>
+            <true/>
+        </dict>
+    </dict>
+</dict>
+
+<key>UIRequiredDeviceCapabilities</key>
+<array>
+    <string>arm64</string>
+</array>
+```
+
+## Testing
+
+### TestFlight Distribution
+
+<Steps>
+  <Step title="Archive for App Store">
+    Create an App Store archive as described above.
+  </Step>
+
+  <Step title="Upload to App Store Connect">
+    In Xcode Organizer:
+    1. Select the archive
+    2. Click **Distribute App**
+    3. Choose **App Store Connect**
+    4. Follow the prompts to upload
+  </Step>
+
+  <Step title="Configure TestFlight">
+    In App Store Connect:
+    1. Go to **TestFlight** tab
+    2. Add internal/external testers
+    3. Submit for beta review (external testers only)
+  </Step>
+</Steps>
+
+### Simulator Testing
+
+Test on multiple simulators:
+
+```bash
+# List available simulators
+xcrun simctl list devices
+
+# Create a new simulator
+xcrun simctl create "iPhone 15 Pro" "iPhone 15 Pro" "iOS17.0"
+
+# Boot simulator
+xcrun simctl boot "iPhone 15 Pro"
+
+# Install and launch
+xcrun simctl install booted path/to/app
+xcrun simctl launch booted com.apptolast.greenhouse.admin
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Framework not found">
+    **Error**: `ld: framework not found ComposeApp`
+
+    **Solution**: Build the iOS framework first:
+    ```bash
+    ./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64
+    ```
+
+    Or in Xcode, add a Run Script phase:
+    ```bash
+    cd "$SRCROOT/.."
+    ./gradlew :composeApp:embedAndSignAppleFrameworkForXcode
+    ```
+  </Accordion>
+
+  <Accordion title="Signing certificate errors">
+    **Error**: `No signing certificate found`
+
+    **Solution**:
+    1. Ensure you're logged into Xcode with your Apple ID
+    2. Go to **Xcode > Settings > Accounts**
+    3. Select your team and click **Manage Certificates**
+    4. Create a new certificate if needed
+  </Accordion>
+
+  <Accordion title="Darwin engine network errors">
+    **Error**: `SSL error with Darwin client`
+
+    **Solution**: Check App Transport Security settings in `Info.plist`. For development, you may need to allow insecure loads for specific domains.
+  </Accordion>
+
+  <Accordion title="Intel Mac simulators">
+    **Error**: Need to run on Intel Mac
+
+    **Solution**: Add `iosX64()` target to `build.gradle.kts`:
+    ```kotlin
+    listOf(
+        iosArm64(),
+        iosSimulatorArm64(),
+        iosX64()  // For Intel Mac simulators
+    ).forEach { ... }
+    ```
+  </Accordion>
+
+  <Accordion title="Koin initialization crashes">
+    **Error**: App crashes on launch with Koin errors
+
+    **Solution**: Ensure `doInitKoin()` is called in the SwiftUI app's `init()`:
+    ```swift
+    @main
+    struct iOSApp: App {
+        init() {
+            MainViewControllerKt.doInitKoin()
+        }
+        ...
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Android Platform" icon="android" href="/platforms/android">
+    Build and deploy to Android devices
+  </Card>
+  <Card title="Web Platform" icon="globe" href="/platforms/web">
+    Deploy as a web application
+  </Card>
+  <Card title="Multiplatform" icon="code-compare" href="/concepts/multiplatform">
+    Share code between platforms
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/concepts/architecture">
+    MVVM architecture and patterns
+  </Card>
+</CardGroup>

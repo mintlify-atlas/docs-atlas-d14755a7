@@ -1,0 +1,578 @@
+---
+title: Deployment
+description: Deploy GreenhouseAdmin using Docker, CI/CD, and production-ready configurations
+---
+
+GreenhouseAdmin is designed for containerized deployment with Docker, automated through GitHub Actions CI/CD pipeline. This guide covers Docker deployment, environment configuration, and production best practices.
+
+## Docker Deployment
+
+The project uses a multi-stage Dockerfile to build and serve the WebAssembly application efficiently.
+
+### Dockerfile Overview
+
+The `Dockerfile` implements a two-stage build:
+
+1. **Stage 1 (Builder):** Compiles the Kotlin Multiplatform application to WebAssembly
+2. **Stage 2 (Runtime):** Serves the built application with Nginx
+
+### Building the Docker Image
+
+Build the Docker image locally:
+
+<CodeGroup>
+```bash Development
+# Build for development environment
+docker build \
+  --build-arg API_BASE_URL=https://api-dev.example.com/api/v1/ \
+  -t greenhouse-admin:dev \
+  .
+```
+
+```bash Production
+# Build for production environment
+docker build \
+  --build-arg API_BASE_URL=https://api.example.com/api/v1/ \
+  -t greenhouse-admin:prod \
+  .
+```
+</CodeGroup>
+
+<Warning>
+  The `API_BASE_URL` build argument is required and must include the full API path including `/api/v1/`.
+</Warning>
+
+### Running the Container
+
+Run the built Docker container:
+
+```bash
+# Run with port mapping
+docker run -d \
+  --name greenhouse-admin \
+  -p 8080:80 \
+  greenhouse-admin:dev
+
+# Access the application
+open http://localhost:8080
+```
+
+### Docker Build Stages
+
+#### Stage 1: Builder (Lines 6-44)
+
+From `Dockerfile:6-44`:
+
+```dockerfile
+FROM gradle:8.10-jdk21 AS builder
+
+# Build argument for API URL (passed from CI/CD)
+ARG API_BASE_URL
+ENV API_BASE_URL=${API_BASE_URL}
+
+# Install libatomic1 for Node.js v25+ (required by Kotlin/WASM)
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libatomic1 \
+    && rm -rf /var/lib/apt/lists/*
+USER gradle
+
+WORKDIR /app
+
+# Configure memory for JVM/Gradle
+ENV GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m"
+
+# Copy Gradle configuration files first (for better caching)
+COPY --chown=gradle:gradle gradle/ gradle/
+COPY --chown=gradle:gradle gradlew gradlew.bat settings.gradle.kts build.gradle.kts gradle.properties ./
+
+# Copy the compose app module
+COPY --chown=gradle:gradle composeApp/ composeApp/
+
+# Create local.properties with API_BASE_URL
+RUN echo "API_BASE_URL=${API_BASE_URL}" > local.properties
+
+# Upgrade Yarn lock files (required after dependency changes)
+RUN ./gradlew kotlinUpgradeYarnLock kotlinWasmUpgradeYarnLock --no-daemon
+
+# Build the WASM distribution
+RUN ./gradlew :composeApp:wasmJsBrowserDistribution --no-daemon --stacktrace
+```
+
+**Key features:**
+- Uses Gradle 8.10 with JDK 21
+- Installs `libatomic1` for Node.js v25+ compatibility
+- Allocates 4GB memory for Gradle builds
+- Layer caching optimized (configuration files copied first)
+- Upgrades Yarn lock files before building
+- Builds production WebAssembly distribution
+
+#### Stage 2: Nginx Server (Lines 46-69)
+
+From `Dockerfile:46-69`:
+
+```dockerfile
+FROM nginx:alpine
+
+# Install required packages
+RUN apk add --no-cache tzdata
+
+# Copy custom nginx configuration
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Copy the built WASM application
+COPY --from=builder /app/composeApp/build/dist/wasmJs/productionExecutable/ /usr/share/nginx/html/
+
+# Create health check endpoint
+RUN echo "OK" > /usr/share/nginx/html/health
+
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost/health || exit 1
+
+# Start Nginx
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+**Key features:**
+- Lightweight Alpine Linux base
+- Custom Nginx configuration for WASM
+- Health check endpoint at `/health`
+- Automatic health monitoring
+
+## Nginx Configuration
+
+The `nginx.conf` provides production-ready configuration for serving WebAssembly applications.
+
+### Critical WASM Headers
+
+From `nginx.conf:52-55`:
+
+```nginx
+# WASM headers for SharedArrayBuffer support (required by Skiko/Compose)
+add_header Cross-Origin-Opener-Policy "same-origin" always;
+add_header Cross-Origin-Embedder-Policy "require-corp" always;
+```
+
+<Warning>
+  These headers are **required** for Compose Multiplatform WebAssembly to work correctly. Without them, the application will fail to load.
+</Warning>
+
+### WASM MIME Type
+
+From `nginx.conf:16-18`:
+
+```nginx
+# Add WASM MIME type
+types {
+    application/wasm wasm;
+}
+```
+
+### Caching Strategy
+
+Optimized caching for different asset types:
+
+**1. Never cache:** `index.html` and entry point JavaScript (Lines 62-82)
+
+```nginx
+# index.html: NEVER cache aggressively
+location = /index.html {
+    add_header Cache-Control "no-cache" always;
+}
+
+# Entry point JS (composeApp.js): revalidate always
+location ~* ^/(composeApp\.js|styles\.css)$ {
+    add_header Cache-Control "no-cache" always;
+}
+```
+
+**2. Cache forever:** Hashed assets (Lines 84-104)
+
+```nginx
+# Hashed JS chunks (446.js, 886.js, etc.): cache forever
+location ~* ^/[0-9]+\.js$ {
+    expires 1y;
+    add_header Cache-Control "public, immutable" always;
+}
+
+# WASM files with hashes: cache forever
+location ~* \.wasm$ {
+    expires 1y;
+    add_header Cache-Control "public, immutable" always;
+}
+```
+
+### Security Headers
+
+From `nginx.conf:46-50`:
+
+```nginx
+# Security headers (applied to all responses)
+add_header X-Frame-Options "SAMEORIGIN" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-XSS-Protection "1; mode=block" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+```
+
+### SPA Routing
+
+From `nginx.conf:57-60`:
+
+```nginx
+# SPA routing: fallback to index.html
+location / {
+    try_files $uri $uri/ /index.html;
+}
+```
+
+### Health Check
+
+From `nginx.conf:112-117`:
+
+```nginx
+# Health check endpoint (for Kubernetes/Docker)
+location /health {
+    access_log off;
+    return 200 "OK\n";
+    add_header Content-Type text/plain;
+}
+```
+
+## Environment Configuration
+
+### Build-Time Configuration
+
+The API URL is injected at build time using BuildKonfig:
+
+```kotlin
+// Access in code
+import com.apptolast.greenhouse.admin.BuildKonfig
+
+val apiUrl = BuildKonfig.API_BASE_URL
+```
+
+### Environment Variables
+
+<Tip>
+  For Docker builds, pass `API_BASE_URL` as a build argument. For local development, set it in `local.properties`.
+</Tip>
+
+**Docker:**
+```bash
+docker build --build-arg API_BASE_URL=https://api.example.com/api/v1/ .
+```
+
+**Local:**
+```properties
+# local.properties
+API_BASE_URL=https://api-dev.example.com/api/v1/
+```
+
+## CI/CD Pipeline
+
+Automated deployment using GitHub Actions.
+
+### Pipeline Overview
+
+From `.github/workflows/ci-cd.yml`:
+
+```yaml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - main
+```
+
+### Build Job (Lines 27-67)
+
+<Steps>
+  <Step title="Checkout Code">
+    ```yaml
+    - name: Checkout code
+      uses: actions/checkout@v4
+    ```
+  </Step>
+
+  <Step title="Setup JDK 21">
+    ```yaml
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: 'gradle'
+    ```
+  </Step>
+
+  <Step title="Configure Environment">
+    ```yaml
+    - name: Create local.properties with API URL
+      run: |
+        if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          echo "API_BASE_URL=${{ secrets.API_BASE_URL_PROD }}" > local.properties
+        else
+          echo "API_BASE_URL=${{ secrets.API_BASE_URL_DEV }}" > local.properties
+        fi
+    ```
+  </Step>
+
+  <Step title="Upgrade Yarn Lock Files">
+    ```yaml
+    - name: Upgrade Yarn Lock files
+      run: |
+        ./gradlew kotlinUpgradeYarnLock --no-daemon
+        ./gradlew kotlinWasmUpgradeYarnLock --no-daemon
+    ```
+  </Step>
+
+  <Step title="Build WASM Distribution">
+    ```yaml
+    - name: Build WASM Distribution
+      run: ./gradlew :composeApp:wasmJsBrowserDistribution --no-daemon --stacktrace
+    ```
+  </Step>
+
+  <Step title="Upload Artifacts">
+    ```yaml
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: wasm-distribution
+        path: composeApp/build/dist/wasmJs/productionExecutable/
+        retention-days: 1
+    ```
+  </Step>
+</Steps>
+
+### Docker Job (Lines 72-137)
+
+<Steps>
+  <Step title="Setup Docker Buildx">
+    ```yaml
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    ```
+  </Step>
+
+  <Step title="Login to Docker Hub">
+    ```yaml
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    ```
+  </Step>
+
+  <Step title="Generate Version Tag">
+    ```yaml
+    - name: Generate version
+      id: version
+      run: |
+        if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          VERSION="prod-$(date +'%Y%m%d%H%M%S')-${GITHUB_SHA::7}"
+        else
+          VERSION="dev-$(date +'%Y%m%d%H%M%S')-${GITHUB_SHA::7}"
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+    ```
+  </Step>
+
+  <Step title="Build and Push Image">
+    ```yaml
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64
+        build-args: |
+          API_BASE_URL=${{ steps.api_url.outputs.url }}
+    ```
+  </Step>
+</Steps>
+
+### Required GitHub Secrets
+
+Configure these secrets in your GitHub repository:
+
+| Secret | Description | Example |
+|--------|-------------|----------|
+| `API_BASE_URL_DEV` | Development API URL | `https://api-dev.example.com/api/v1/` |
+| `API_BASE_URL_PROD` | Production API URL | `https://api.example.com/api/v1/` |
+| `DOCKERHUB_USERNAME` | Docker Hub username | `apptolast` |
+| `DOCKERHUB_TOKEN` | Docker Hub access token | `dckr_pat_...` |
+
+## Health Checks and Monitoring
+
+### Docker Health Check
+
+The container includes built-in health checking:
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost/health || exit 1
+```
+
+**Check container health:**
+```bash
+docker ps
+# Look for "healthy" status
+
+docker inspect --format='{{.State.Health.Status}}' greenhouse-admin
+```
+
+### Health Endpoint
+
+Access the health endpoint:
+
+```bash
+curl http://localhost:8080/health
+# Response: OK
+```
+
+### Kubernetes Probes (Example)
+
+If deploying to Kubernetes:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: greenhouse-admin
+spec:
+  containers:
+  - name: app
+    image: apptolast/greenhouse-admin:latest
+    ports:
+    - containerPort: 80
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 80
+      initialDelaySeconds: 5
+      periodSeconds: 10
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 80
+      initialDelaySeconds: 5
+      periodSeconds: 5
+```
+
+## Production Deployment Checklist
+
+<Steps>
+  <Step title="Environment Configuration">
+    - [ ] Set correct `API_BASE_URL` for production
+    - [ ] Configure GitHub secrets for CI/CD
+    - [ ] Verify environment-specific settings
+  </Step>
+
+  <Step title="Build Verification">
+    - [ ] Test Docker build locally
+    - [ ] Verify health check endpoint works
+    - [ ] Test application in production-like environment
+    - [ ] Check browser console for errors
+  </Step>
+
+  <Step title="Security">
+    - [ ] Ensure CORS headers are correctly configured
+    - [ ] Verify HTTPS is enabled (if applicable)
+    - [ ] Review security headers in nginx.conf
+    - [ ] Scan Docker image for vulnerabilities
+  </Step>
+
+  <Step title="Performance">
+    - [ ] Verify WASM files are being cached
+    - [ ] Test with browser dev tools network tab
+    - [ ] Enable gzip compression (already configured)
+    - [ ] Monitor container resource usage
+  </Step>
+
+  <Step title="Monitoring">
+    - [ ] Set up container monitoring
+    - [ ] Configure log aggregation
+    - [ ] Set up alerts for health check failures
+    - [ ] Monitor application errors
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### Docker Build Failures
+
+**Issue:** Out of memory during Gradle build
+
+**Solution:**
+```dockerfile
+# Increase memory in Dockerfile
+ENV GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx8g -XX:MaxMetaspaceSize=1g"
+```
+
+**Issue:** Yarn lock file errors
+
+**Solution:**
+```bash
+# The Dockerfile already handles this, but for local builds:
+docker build --no-cache .
+```
+
+### Runtime Issues
+
+**Issue:** Application loads but shows white screen
+
+**Solution:** Check browser console for CORS errors. Ensure nginx configuration includes:
+```nginx
+add_header Cross-Origin-Opener-Policy "same-origin" always;
+add_header Cross-Origin-Embedder-Policy "require-corp" always;
+```
+
+**Issue:** Health check fails
+
+**Solution:**
+```bash
+# Check nginx logs
+docker logs greenhouse-admin
+
+# Verify health endpoint manually
+docker exec greenhouse-admin wget -O- http://localhost/health
+```
+
+### Container Monitoring
+
+```bash
+# View container logs
+docker logs -f greenhouse-admin
+
+# Check container resource usage
+docker stats greenhouse-admin
+
+# Inspect container configuration
+docker inspect greenhouse-admin
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Setup" icon="gear" href="/development/setup">
+    Set up your local development environment
+  </Card>
+  
+  <Card title="Building" icon="hammer" href="/development/building">
+    Learn how to build for different platforms
+  </Card>
+</CardGroup>

@@ -1,0 +1,480 @@
+---
+title: DashboardViewModel
+description: Manages state and business logic for the Dashboard screen with statistics, recent alerts, and client activity
+---
+
+## Overview
+
+The `DashboardViewModel` manages the state for the main Dashboard screen, displaying key statistics, recent alerts, recent client activity, and device breakdowns. It follows the MVVM+MVI architectural pattern with optimized data loading to minimize API calls.
+
+Source: `viewmodel/DashboardViewModel.kt:21`
+
+```kotlin
+class DashboardViewModel(
+    private val repository: DashboardRepository
+) : ViewModel()
+```
+
+## UI State
+
+The ViewModel exposes a `DashboardUiState` that represents the complete dashboard state.
+
+Source: `viewmodel/DashboardUiState.kt:14`
+
+```kotlin
+data class DashboardUiState(
+    // Loading states
+    val isLoading: Boolean = true,
+    val isRefreshing: Boolean = false,
+
+    // Error state
+    val error: String? = null,
+
+    // Data states
+    val statCards: List<StatCard> = emptyList(),
+    val menuItems: List<MenuItem> = emptyList(),
+
+    // Additional dashboard data
+    val dashboardStats: DashboardStats? = null,
+    val recentAlerts: List<RecentAlert> = emptyList(),
+    val recentClients: List<RecentClient> = emptyList(),
+    val deviceBreakdown: DeviceBreakdown = DeviceBreakdown(),
+
+    // Search state
+    val searchQuery: String = "",
+
+    // Navigation state
+    val selectedMenuId: String = "dashboard"
+)
+```
+
+### State Fields
+
+<ResponseField name="isLoading" type="Boolean">
+  Initial loading state for the dashboard
+</ResponseField>
+
+<ResponseField name="isRefreshing" type="Boolean">
+  Pull-to-refresh loading state
+</ResponseField>
+
+<ResponseField name="error" type="String?">
+  Error message if dashboard data fails to load
+</ResponseField>
+
+<ResponseField name="statCards" type="List<StatCard>">
+  List of statistical summary cards (clients, greenhouses, devices, alerts)
+</ResponseField>
+
+<ResponseField name="menuItems" type="List<MenuItem>">
+  Navigation menu items for the sidebar
+</ResponseField>
+
+<ResponseField name="dashboardStats" type="DashboardStats?">
+  Comprehensive dashboard statistics from the API
+</ResponseField>
+
+<ResponseField name="recentAlerts" type="List<RecentAlert>">
+  Most recent alerts across all clients
+</ResponseField>
+
+<ResponseField name="recentClients" type="List<RecentClient>">
+  Recently added or updated clients
+</ResponseField>
+
+<ResponseField name="deviceBreakdown" type="DeviceBreakdown">
+  Breakdown of devices by type (sensors vs actuators)
+</ResponseField>
+
+<ResponseField name="searchQuery" type="String">
+  Current search query in the top bar
+</ResponseField>
+
+<ResponseField name="selectedMenuId" type="String">
+  Currently selected sidebar menu item (default: "dashboard")
+</ResponseField>
+
+### Computed Properties
+
+The `DashboardUiState` provides computed properties for common data access:
+
+<ResponseField name="hasContent" type="Boolean">
+  Returns true if statCards are available to display
+</ResponseField>
+
+<ResponseField name="isError" type="Boolean">
+  Returns true if in error state with no content
+</ResponseField>
+
+<ResponseField name="totalUsers" type="Int">
+  Total user count from dashboard stats (default: 0)
+</ResponseField>
+
+<ResponseField name="criticalAlerts" type="Int">
+  Count of critical alerts (default: 0)
+</ResponseField>
+
+## Events
+
+All user interactions are handled through the `DashboardEvent` sealed interface.
+
+Source: `viewmodel/DashboardEvent.kt:7`
+
+```kotlin
+sealed interface DashboardEvent {
+    /**
+     * Initial load of dashboard data.
+     */
+    data object LoadDashboard : DashboardEvent
+
+    /**
+     * Pull-to-refresh or manual refresh.
+     */
+    data object RefreshDashboard : DashboardEvent
+
+    /**
+     * User typed in the search field.
+     */
+    data class OnSearchQueryChanged(val query: String) : DashboardEvent
+
+    /**
+     * User selected a menu item from sidebar.
+     */
+    data class OnMenuItemSelected(val itemId: String) : DashboardEvent
+
+    /**
+     * Dismiss current error message.
+     */
+    data object DismissError : DashboardEvent
+}
+```
+
+### Event Descriptions
+
+**LoadDashboard**
+- Triggered automatically on ViewModel initialization
+- Loads all dashboard data including stats, alerts, and recent clients
+
+**RefreshDashboard**
+- User-initiated refresh (pull-to-refresh or manual)
+- Reloads dashboard data while preserving current state
+
+**OnSearchQueryChanged**
+- Updates the top bar search query
+- Does not automatically filter content (handled by UI layer)
+
+**OnMenuItemSelected**
+- Updates the selected menu item in the sidebar
+- Typically triggers navigation in the UI layer
+
+**DismissError**
+- Clears the current error message
+- Allows user to retry or continue using the app
+
+## Methods
+
+### onEvent
+
+```kotlin
+fun onEvent(event: DashboardEvent)
+```
+
+Single entry point for all user interactions following MVI pattern. Dispatches events to appropriate private handlers.
+
+### State Management
+
+The ViewModel uses Kotlin `StateFlow` for reactive state management:
+
+```kotlin
+val uiState: StateFlow<DashboardUiState>
+```
+
+Exposed as an immutable `StateFlow` for UI consumption:
+
+```kotlin
+private val _uiState = MutableStateFlow(DashboardUiState())
+val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
+```
+
+## Data Loading Strategy
+
+The ViewModel implements an optimized data loading strategy that minimizes API calls:
+
+### Initial Load
+
+```kotlin
+private fun loadDashboard() {
+    viewModelScope.launch {
+        _uiState.update { it.copy(isLoading = true, error = null) }
+
+        // Call getDashboardStats() ONCE - expensive operation
+        val dashboardStatsResult = repository.getDashboardStats()
+
+        // Cheap calls (static or cached)
+        val menuDeferred = async { repository.getMenuItems() }
+        val recentAlertsDeferred = async { repository.getRecentAlerts() }
+        val recentClientsDeferred = async { repository.getRecentClients() }
+
+        val menuResult = menuDeferred.await()
+        val recentAlertsResult = recentAlertsDeferred.await()
+        val recentClientsResult = recentClientsDeferred.await()
+
+        val dashboardStats = dashboardStatsResult.getOrNull()
+
+        _uiState.update { currentState ->
+            currentState.copy(
+                isLoading = false,
+                statCards = dashboardStats?.toStatCards() ?: emptyList(),
+                menuItems = menuResult.getOrDefault(emptyList()),
+                dashboardStats = dashboardStats,
+                recentAlerts = recentAlertsResult.getOrDefault(emptyList()),
+                recentClients = recentClientsResult.getOrDefault(emptyList()),
+                deviceBreakdown = dashboardStats?.let {
+                    DeviceBreakdown(
+                        sensors = it.sensorCount,
+                        actuators = it.actuatorCount
+                    )
+                } ?: DeviceBreakdown(),
+                error = dashboardStatsResult.exceptionOrNull()?.message
+            )
+        }
+    }
+}
+```
+
+### StatCard Derivation
+
+Instead of making a separate API call, `StatCard` data is derived from `DashboardStats`:
+
+```kotlin
+private fun DashboardStats.toStatCards(): List<StatCard> = listOf(
+    StatCard(
+        id = "clients",
+        title = "Total Clients",
+        value = totalClients.toString(),
+        subtitle = "$activeClients activos",
+        subtitleColor = StatCardSubtitleColor.SUCCESS,
+        icon = StatCardIcon.PEOPLE
+    ),
+    StatCard(
+        id = "greenhouses",
+        title = "Total Greenhouses",
+        value = totalGreenhouses.toString(),
+        subtitle = if (totalGreenhouses > 0) {
+            val percentage = (activeGreenhouses * 100) / totalGreenhouses
+            "$percentage% Active"
+        } else "0% Active",
+        subtitleColor = StatCardSubtitleColor.SUCCESS,
+        icon = StatCardIcon.GREENHOUSE
+    ),
+    StatCard(
+        id = "devices",
+        title = "Active Devices",
+        value = totalDevices.toString(),
+        subtitle = "$sensorCount sensors, $actuatorCount actuators",
+        subtitleColor = StatCardSubtitleColor.SUCCESS,
+        icon = StatCardIcon.DEVICES
+    ),
+    StatCard(
+        id = "alerts",
+        title = "Active Alerts",
+        value = activeAlerts.toString(),
+        subtitle = if (criticalAlerts > 0) {
+            "$criticalAlerts critical"
+        } else "No critical alerts",
+        subtitleColor = if (criticalAlerts > 0) {
+            StatCardSubtitleColor.WARNING
+        } else StatCardSubtitleColor.SUCCESS,
+        icon = StatCardIcon.ALERT
+    )
+)
+```
+
+## Usage Example
+
+```kotlin
+import org.koin.compose.viewmodel.koinViewModel
+import androidx.compose.runtime.collectAsState
+
+@Composable
+fun DashboardScreen() {
+    val viewModel: DashboardViewModel = koinViewModel()
+    val state by viewModel.uiState.collectAsState()
+    
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Dashboard") },
+                actions = {
+                    SearchBar(
+                        query = state.searchQuery,
+                        onQueryChange = { 
+                            viewModel.onEvent(
+                                DashboardEvent.OnSearchQueryChanged(it)
+                            ) 
+                        }
+                    )
+                }
+            )
+        }
+    ) { padding ->
+        when {
+            state.isLoading -> LoadingIndicator()
+            state.isError -> ErrorDisplay(
+                message = state.error,
+                onDismiss = { 
+                    viewModel.onEvent(DashboardEvent.DismissError) 
+                }
+            )
+            else -> {
+                val pullRefreshState = rememberPullRefreshState(
+                    refreshing = state.isRefreshing,
+                    onRefresh = { 
+                        viewModel.onEvent(DashboardEvent.RefreshDashboard) 
+                    }
+                )
+                
+                Box(Modifier.pullRefresh(pullRefreshState)) {
+                    LazyColumn(modifier = Modifier.padding(padding)) {
+                        // Stat cards section
+                        item {
+                            StatCardsGrid(
+                                statCards = state.statCards,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                        
+                        // Device breakdown
+                        item {
+                            DeviceBreakdownCard(
+                                breakdown = state.deviceBreakdown,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                        
+                        // Recent alerts section
+                        item {
+                            Text(
+                                "Recent Alerts",
+                                style = MaterialTheme.typography.titleLarge,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                        
+                        items(state.recentAlerts) { alert ->
+                            AlertItem(
+                                alert = alert,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                        }
+                        
+                        // Recent clients section
+                        item {
+                            Text(
+                                "Recent Clients",
+                                style = MaterialTheme.typography.titleLarge,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                        
+                        items(state.recentClients) { client ->
+                            RecentClientItem(
+                                client = client,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                        }
+                    }
+                    
+                    PullRefreshIndicator(
+                        refreshing = state.isRefreshing,
+                        state = pullRefreshState,
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
+                }
+            }
+        }
+    }
+}
+```
+
+## State Flow Pattern
+
+### Initialization
+
+The ViewModel automatically loads dashboard data on initialization:
+
+```kotlin
+init {
+    onEvent(DashboardEvent.LoadDashboard)
+}
+```
+
+### Refresh Pattern
+
+Refresh preserves existing data while loading:
+
+```kotlin
+private fun refreshDashboard() {
+    viewModelScope.launch {
+        _uiState.update { it.copy(isRefreshing = true) }
+        
+        // Load fresh data
+        val result = repository.getDashboardStats()
+        
+        _uiState.update { currentState ->
+            currentState.copy(
+                isRefreshing = false,
+                // Update with fresh data or preserve existing on failure
+                dashboardStats = result.getOrNull() ?: currentState.dashboardStats,
+                error = result.exceptionOrNull()?.message
+            )
+        }
+    }
+}
+```
+
+## Error Handling
+
+Errors are captured and exposed through the state:
+
+```kotlin
+repository.getDashboardStats()
+    .onSuccess { stats ->
+        _uiState.update { it.copy(dashboardStats = stats, error = null) }
+    }
+    .onFailure { error ->
+        _uiState.update { it.copy(error = error.message) }
+    }
+```
+
+## Dependency Injection
+
+The ViewModel is provided via Koin:
+
+```kotlin
+// In di/PresentationModule.kt
+val presentationModule = module {
+    viewModelOf(::DashboardViewModel)
+}
+```
+
+## Performance Optimization
+
+Key optimizations implemented:
+
+1. **Single API Call** - `getDashboardStats()` is called once, not multiple times
+2. **Data Derivation** - `StatCard` list is derived from stats instead of separate API call
+3. **Parallel Loading** - Menu items, alerts, and clients are loaded in parallel using `async`
+4. **Cached Data** - Repository can cache frequently accessed data like recent alerts
+
+## Related Types
+
+- `DashboardStats` - Comprehensive statistics data model
+- `StatCard` - Individual stat card display model
+- `StatCardIcon` - Icon types for stat cards
+- `StatCardSubtitleColor` - Subtitle color variants
+- `MenuItem` - Sidebar menu item model
+- `RecentAlert` - Recent alert summary model
+- `RecentClient` - Recent client summary model
+- `DeviceBreakdown` - Device breakdown by type (sensors/actuators)
+- `DashboardRepository` - Repository interface for dashboard data

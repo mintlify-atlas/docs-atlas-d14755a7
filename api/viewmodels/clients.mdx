@@ -1,0 +1,720 @@
+---
+title: ClientsViewModel
+description: Manages state and business logic for the Clients list screen, including filtering, pagination, and CRUD operations
+---
+
+## Overview
+
+The `ClientsViewModel` manages the complete state for the Clients screen following the MVVM+MVI architectural pattern. It handles client listing, filtering, pagination, search functionality, and CRUD operations for client management.
+
+Source: `viewmodel/ClientsViewModel.kt:21`
+
+```kotlin
+class ClientsViewModel(
+    private val repository: ClientsRepository
+) : ViewModel()
+```
+
+## UI State
+
+The ViewModel exposes a `ClientsUiState` that represents the complete UI state immutably.
+
+Source: `viewmodel/ClientsUiState.kt:11`
+
+```kotlin
+data class ClientsUiState(
+    // Loading states
+    val isLoading: Boolean = true,
+    val isRefreshing: Boolean = false,
+
+    // Error state
+    val error: String? = null,
+
+    // Navigation/Layout states
+    val selectedMenuId: String = "clients",
+    val topBarSearchQuery: String = "",
+
+    // Data states
+    val clients: List<Client> = emptyList(),
+    val provinces: List<String> = emptyList(),
+    val countries: List<String> = emptyList(),
+
+    // Filter states
+    val searchQuery: String = "",
+    val statusFilter: ClientStatusFilter = ClientStatusFilter.ALL,
+    val provinceFilter: String? = null,
+
+    // Pagination
+    val pagination: PaginationInfo = PaginationInfo(),
+
+    // Create dialog states
+    val showNewClientDialog: Boolean = false,
+    val isCreatingClient: Boolean = false,
+    val createClientError: String? = null,
+
+    // Edit dialog states
+    val showEditClientDialog: Boolean = false,
+    val clientToEdit: Client? = null,
+    val isUpdatingClient: Boolean = false,
+    val updateClientError: String? = null,
+
+    // Delete dialog states
+    val showDeleteConfirmation: Boolean = false,
+    val clientToDelete: Client? = null,
+    val isDeletingClient: Boolean = false,
+    val deleteClientError: String? = null
+)
+```
+
+### State Fields
+
+<ResponseField name="isLoading" type="Boolean">
+  Initial loading state for the clients list
+</ResponseField>
+
+<ResponseField name="isRefreshing" type="Boolean">
+  Pull-to-refresh loading state
+</ResponseField>
+
+<ResponseField name="error" type="String?">
+  General error message for the screen
+</ResponseField>
+
+<ResponseField name="selectedMenuId" type="String">
+  Currently selected sidebar menu item (default: "clients")
+</ResponseField>
+
+<ResponseField name="topBarSearchQuery" type="String">
+  Search query in the top navigation bar
+</ResponseField>
+
+<ResponseField name="clients" type="List<Client>">
+  Complete list of all clients from the repository
+</ResponseField>
+
+<ResponseField name="provinces" type="List<String>">
+  Distinct sorted list of provinces extracted from clients
+</ResponseField>
+
+<ResponseField name="countries" type="List<String>">
+  Distinct sorted list of countries extracted from clients
+</ResponseField>
+
+<ResponseField name="searchQuery" type="String">
+  Search query for filtering clients by name or email
+</ResponseField>
+
+<ResponseField name="statusFilter" type="ClientStatusFilter">
+  Current status filter (ALL, ACTIVE, INACTIVE, etc.)
+</ResponseField>
+
+<ResponseField name="provinceFilter" type="String?">
+  Selected province for filtering, null means no filter
+</ResponseField>
+
+<ResponseField name="pagination" type="PaginationInfo">
+  Pagination information including current page, page size, and total items
+</ResponseField>
+
+### Computed Properties
+
+The `ClientsUiState` provides several computed properties:
+
+<ResponseField name="filteredClients" type="List<Client>">
+  Clients filtered by search query, status, and province
+</ResponseField>
+
+<ResponseField name="paginatedClients" type="List<Client>">
+  Filtered clients for the current page
+</ResponseField>
+
+<ResponseField name="currentPagination" type="PaginationInfo">
+  Updated pagination info with filtered total count
+</ResponseField>
+
+<ResponseField name="hasContent" type="Boolean">
+  True if any clients are available to display
+</ResponseField>
+
+<ResponseField name="isError" type="Boolean">
+  True if in error state with no content
+</ResponseField>
+
+## Events
+
+All user interactions are handled through the `ClientsEvent` sealed interface following the MVI pattern.
+
+Source: `viewmodel/ClientsEvent.kt:12`
+
+```kotlin
+sealed interface ClientsEvent {
+    // Data loading
+    data object LoadClients : ClientsEvent
+    data object RefreshClients : ClientsEvent
+    
+    // Search and filters
+    data class OnSearchQueryChanged(val query: String) : ClientsEvent
+    data class OnStatusFilterChanged(val filter: ClientStatusFilter) : ClientsEvent
+    data class OnProvinceFilterChanged(val province: String?) : ClientsEvent
+    
+    // Client interactions
+    data class OnClientClicked(val client: Client) : ClientsEvent
+    data class OnEditClientClicked(val client: Client) : ClientsEvent
+    data class OnDeleteClientClicked(val client: Client) : ClientsEvent
+    
+    // Delete confirmation
+    data object OnConfirmDelete : ClientsEvent
+    data object OnCancelDelete : ClientsEvent
+    
+    // New client dialog
+    data object OnNewClientClicked : ClientsEvent
+    data object OnDismissNewClientDialog : ClientsEvent
+    data class OnSubmitNewClient(
+        val name: String,
+        val email: String,
+        val phone: String,
+        val province: String,
+        val country: String,
+        val location: Location?,
+        val status: ClientStatus
+    ) : ClientsEvent
+    
+    // Edit client dialog
+    data object OnDismissEditClientDialog : ClientsEvent
+    data class OnSubmitEditClient(
+        val id: Long,
+        val name: String,
+        val email: String,
+        val phone: String,
+        val province: String,
+        val country: String,
+        val location: Location?,
+        val status: ClientStatus
+    ) : ClientsEvent
+    
+    // Pagination
+    data class OnPageChanged(val page: Int) : ClientsEvent
+    data class OnPageSizeChanged(val size: Int) : ClientsEvent
+    
+    // Error handling
+    data object DismissError : ClientsEvent
+    
+    // Navigation
+    data class OnMenuItemSelected(val itemId: String) : ClientsEvent
+    data class OnTopBarSearchQueryChanged(val query: String) : ClientsEvent
+}
+```
+
+### Event Categories
+
+**Data Loading Events**
+- `LoadClients` - Initial load of clients
+- `RefreshClients` - Pull-to-refresh action
+
+**Filter Events**
+- `OnSearchQueryChanged` - User typed in search field
+- `OnStatusFilterChanged` - Status filter changed
+- `OnProvinceFilterChanged` - Province filter changed
+
+**CRUD Events**
+- `OnNewClientClicked` - Show new client dialog
+- `OnSubmitNewClient` - Create new client
+- `OnEditClientClicked` - Show edit dialog for client
+- `OnSubmitEditClient` - Update existing client
+- `OnDeleteClientClicked` - Show delete confirmation
+- `OnConfirmDelete` - Confirm client deletion
+
+## Methods
+
+### onEvent
+
+```kotlin
+fun onEvent(event: ClientsEvent)
+```
+
+Single entry point for all user interactions following MVI pattern. Dispatches events to appropriate handlers.
+
+### State Management
+
+The ViewModel uses Kotlin `StateFlow` for reactive state management:
+
+```kotlin
+val uiState: StateFlow<ClientsUiState>
+```
+
+State is updated immutably using the `update` function:
+
+```kotlin
+_uiState.update { it.copy(searchQuery = query) }
+```
+
+## Usage Example
+
+```kotlin
+import org.koin.compose.viewmodel.koinViewModel
+import androidx.compose.runtime.collectAsState
+
+@Composable
+fun ClientsScreen() {
+    val viewModel: ClientsViewModel = koinViewModel()
+    val state by viewModel.uiState.collectAsState()
+    
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Clients") },
+                actions = {
+                    SearchBar(
+                        query = state.searchQuery,
+                        onQueryChange = { 
+                            viewModel.onEvent(ClientsEvent.OnSearchQueryChanged(it)) 
+                        }
+                    )
+                }
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { 
+                    viewModel.onEvent(ClientsEvent.OnNewClientClicked) 
+                }
+            ) {
+                Icon(Icons.Default.Add, "Add Client")
+            }
+        }
+    ) { padding ->
+        when {
+            state.isLoading -> LoadingIndicator()
+            state.isError -> ErrorDisplay(state.error)
+            else -> {
+                LazyColumn(modifier = Modifier.padding(padding)) {
+                    items(state.paginatedClients) { client ->
+                        ClientRow(
+                            client = client,
+                            onClick = { 
+                                viewModel.onEvent(
+                                    ClientsEvent.OnClientClicked(client)
+                                ) 
+                            },
+                            onEdit = { 
+                                viewModel.onEvent(
+                                    ClientsEvent.OnEditClientClicked(client)
+                                ) 
+                            },
+                            onDelete = { 
+                                viewModel.onEvent(
+                                    ClientsEvent.OnDeleteClientClicked(client)
+                                ) 
+                            }
+                        )
+                    }
+                }
+                
+                // Pagination controls
+                PaginationBar(
+                    pagination = state.currentPagination,
+                    onPageChange = { page ->
+                        viewModel.onEvent(ClientsEvent.OnPageChanged(page))
+                    }
+                )
+            }
+        }
+    }
+}
+```
+
+## State Flow Pattern
+
+### Initialization
+
+The ViewModel automatically loads clients on initialization:
+
+```kotlin
+init {
+    onEvent(ClientsEvent.LoadClients)
+}
+```
+
+### Filtering Logic
+
+Filtering is applied in the UI state's computed property:
+
+```kotlin
+val filteredClients: List<Client>
+    get() = clients.filter { client ->
+        val matchesSearch = searchQuery.isEmpty() ||
+                client.name.contains(searchQuery, ignoreCase = true) ||
+                client.email.contains(searchQuery, ignoreCase = true)
+
+        val matchesStatus = statusFilter.matches(client.status)
+
+        val matchesProvince = provinceFilter == null ||
+                client.province == provinceFilter
+
+        matchesSearch && matchesStatus && matchesProvince
+    }
+```
+
+### Data Optimization
+
+Provinces and countries are extracted from loaded clients to optimize API calls:
+
+```kotlin
+private fun List<Client>.extractProvinces(): List<String> =
+    mapNotNull { it.province.takeIf { p -> p.isNotBlank() } }
+        .distinct()
+        .sorted()
+```
+
+## Error Handling
+
+Errors are captured and exposed through the state:
+
+```kotlin
+repository.getClients()
+    .onSuccess { clients ->
+        _uiState.update { it.copy(clients = clients, isLoading = false) }
+    }
+    .onFailure { error ->
+        _uiState.update { it.copy(error = error.message, isLoading = false) }
+    }
+```
+
+## Dependency Injection
+
+The ViewModel is provided via Koin:
+
+```kotlin
+// In di/PresentationModule.kt
+val presentationModule = module {
+    viewModelOf(::ClientsViewModel)
+}
+```
+
+## Related Types
+
+- `Client` - Client data model
+- `ClientsRepository` - Repository interface for client data
+- `ClientStatus` - Enum for client status
+- `ClientStatusFilter` - Filter options for client status
+- `Location` - Geographic location data class
+- `PaginationInfo` - Pagination state data class
+
+---
+
+# ClientDetailViewModel
+
+## Overview
+
+The `ClientDetailViewModel` manages the comprehensive state for a single client's detail screen, including multiple tabs (General, Users, Greenhouses, Sectors, Devices, Alerts, Settings). It coordinates data loading, CRUD operations, and form state management across all tabs.
+
+Source: `viewmodel/ClientDetailViewModel.kt:37`
+
+```kotlin
+class ClientDetailViewModel(
+    private val clientId: Long,
+    private val clientsRepository: ClientsRepository,
+    private val usersRepository: UsersRepository,
+    private val greenhousesRepository: GreenhousesRepository,
+    private val sectorsRepository: SectorsRepository,
+    private val devicesRepository: DevicesRepository,
+    private val alertsRepository: AlertsRepository,
+    private val settingsRepository: SettingsRepository
+) : ViewModel()
+```
+
+## UI State
+
+Source: `viewmodel/ClientDetailUiState.kt:21`
+
+```kotlin
+data class ClientDetailUiState(
+    // Loading states
+    val isLoading: Boolean = true,
+    val error: String? = null,
+
+    // Navigation/Layout states
+    val selectedMenuId: String = "clients",
+    val topBarSearchQuery: String = "",
+
+    // Catalogs state (preloaded on init)
+    val isCatalogsLoading: Boolean = true,
+    val catalogsError: String? = null,
+
+    // Client data
+    val client: Client? = null,
+
+    // Tab state
+    val selectedTab: ClientDetailTab = ClientDetailTab.GENERAL,
+
+    // Edit/Delete client states
+    val showEditClientDialog: Boolean = false,
+    val isUpdatingClient: Boolean = false,
+    val updateClientError: String? = null,
+    val showDeleteConfirmation: Boolean = false,
+    val isDeletingClient: Boolean = false,
+    val deleteClientError: String? = null,
+    val shouldNavigateBack: Boolean = false,
+
+    // Users tab
+    val users: List<User> = emptyList(),
+    val isLoadingUsers: Boolean = false,
+    val usersError: String? = null,
+    val showUserFormDialog: Boolean = false,
+    val userFormMode: UserFormMode = UserFormMode.Create,
+
+    // Greenhouses tab
+    val greenhouses: List<Greenhouse> = emptyList(),
+    val isLoadingGreenhouses: Boolean = false,
+    val greenhousesError: String? = null,
+    val showGreenhouseFormDialog: Boolean = false,
+    val greenhouseFormMode: GreenhouseFormMode = GreenhouseFormMode.Create,
+
+    // Sectors tab
+    val sectors: List<Sector> = emptyList(),
+    val isLoadingSectors: Boolean = false,
+    val sectorsError: String? = null,
+    val showSectorFormDialog: Boolean = false,
+    val sectorFormMode: SectorFormMode = SectorFormMode.Create,
+
+    // Devices tab
+    val devices: List<Device> = emptyList(),
+    val isLoadingDevices: Boolean = false,
+    val devicesError: String? = null,
+    val showDeviceFormDialog: Boolean = false,
+    val deviceFormMode: DeviceFormMode = DeviceFormMode.Create,
+    val deviceCategories: List<DeviceCatalogCategory> = emptyList(),
+    val deviceTypes: List<DeviceCatalogType> = emptyList(),
+    val deviceUnits: List<DeviceCatalogUnit> = emptyList(),
+
+    // Alerts tab
+    val alerts: List<Alert> = emptyList(),
+    val isLoadingAlerts: Boolean = false,
+    val alertsError: String? = null,
+    val showAlertFormDialog: Boolean = false,
+    val alertFormMode: AlertFormMode = AlertFormMode.Create,
+    val alertTypes: List<AlertType> = emptyList(),
+    val alertSeverities: List<AlertSeverityCatalog> = emptyList(),
+
+    // Settings tab
+    val settings: List<Setting> = emptyList(),
+    val isLoadingSettings: Boolean = false,
+    val settingsError: String? = null,
+    val showSettingFormDialog: Boolean = false,
+    val settingFormMode: SettingFormMode = SettingFormMode.Create,
+    val actuatorStates: List<ActuatorState> = emptyList()
+)
+```
+
+### Tab Enum
+
+```kotlin
+enum class ClientDetailTab {
+    GENERAL,
+    USERS,
+    GREENHOUSES,
+    SECTORS,
+    DEVICES,
+    ALERTS,
+    SETTINGS
+}
+```
+
+### Form Modes
+
+Each tab uses sealed interfaces for form modes:
+
+```kotlin
+sealed interface UserFormMode {
+    data object Create : UserFormMode
+    data class Edit(val user: User) : UserFormMode
+}
+
+sealed interface GreenhouseFormMode {
+    data object Create : GreenhouseFormMode
+    data class Edit(val greenhouse: Greenhouse) : GreenhouseFormMode
+}
+
+// Similar patterns for Sector, Device, Alert, and Setting form modes
+```
+
+## Initialization Strategy
+
+The ViewModel preloads all catalog data at initialization to optimize form dropdowns:
+
+```kotlin
+init {
+    loadClient()
+    loadAllCatalogs()  // Parallel loading of all catalogs
+}
+
+private fun loadAllCatalogs() {
+    viewModelScope.launch {
+        coroutineScope {
+            // All catalog endpoints loaded in parallel
+            val categoriesDeferred = async { devicesRepository.getDeviceCategories() }
+            val typesDeferred = async { devicesRepository.getDeviceTypes(null) }
+            val unitsDeferred = async { devicesRepository.getUnits() }
+            val alertTypesDeferred = async { alertsRepository.getAlertTypes() }
+            // ... etc
+        }
+    }
+}
+```
+
+## Events
+
+Source: `viewmodel/ClientDetailEvent.kt:17`
+
+The `ClientDetailEvent` sealed interface handles all user interactions across tabs:
+
+```kotlin
+sealed interface ClientDetailEvent {
+    // Client operations
+    data object LoadClient : ClientDetailEvent
+    data class OnTabSelected(val tab: ClientDetailTab) : ClientDetailEvent
+    data object OnBackClicked : ClientDetailEvent
+    data object OnEditClicked : ClientDetailEvent
+    data object OnDeleteClicked : ClientDetailEvent
+    data object OnConfirmDelete : ClientDetailEvent
+    data object OnCancelDelete : ClientDetailEvent
+    
+    // Users tab events
+    data object LoadUsers : ClientDetailEvent
+    data object OnAddUserClicked : ClientDetailEvent
+    data class OnEditUserClicked(val user: User) : ClientDetailEvent
+    data class OnDeleteUserClicked(val user: User) : ClientDetailEvent
+    data class OnSubmitUserForm(
+        val username: String,
+        val email: String,
+        val password: String?,
+        val role: UserRole,
+        val isActive: Boolean
+    ) : ClientDetailEvent
+    
+    // Similar patterns for Greenhouses, Sectors, Devices, Alerts, Settings
+    // ...
+}
+```
+
+## Lazy Loading Pattern
+
+Tab data is loaded on-demand when tabs are selected:
+
+```kotlin
+private fun selectTab(tab: ClientDetailTab) {
+    _uiState.update { it.copy(selectedTab = tab) }
+    when (tab) {
+        ClientDetailTab.USERS -> {
+            if (_uiState.value.users.isEmpty() && !_uiState.value.isLoadingUsers) {
+                loadUsers()
+            }
+        }
+        // Similar for other tabs...
+    }
+}
+```
+
+## Usage Example
+
+```kotlin
+@Composable
+fun ClientDetailScreen(
+    clientId: Long,
+    onNavigateBack: () -> Unit
+) {
+    // ViewModel with clientId parameter
+    val viewModel: ClientDetailViewModel = koinViewModel(
+        parameters = { parametersOf(clientId) }
+    )
+    val state by viewModel.uiState.collectAsState()
+    
+    // Handle navigation after delete
+    LaunchedEffect(state.shouldNavigateBack) {
+        if (state.shouldNavigateBack) {
+            onNavigateBack()
+            viewModel.onEvent(ClientDetailEvent.OnNavigationHandled)
+        }
+    }
+    
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(state.client?.name ?: "Client Details") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.Default.ArrowBack, "Back")
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = { 
+                            viewModel.onEvent(ClientDetailEvent.OnEditClicked) 
+                        }
+                    ) {
+                        Icon(Icons.Default.Edit, "Edit")
+                    }
+                    IconButton(
+                        onClick = { 
+                            viewModel.onEvent(ClientDetailEvent.OnDeleteClicked) 
+                        }
+                    ) {
+                        Icon(Icons.Default.Delete, "Delete")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(Modifier.padding(padding)) {
+            // Tab row
+            TabRow(selectedTabIndex = state.selectedTab.ordinal) {
+                ClientDetailTab.values().forEach { tab ->
+                    Tab(
+                        selected = state.selectedTab == tab,
+                        onClick = { 
+                            viewModel.onEvent(
+                                ClientDetailEvent.OnTabSelected(tab)
+                            ) 
+                        },
+                        text = { Text(tab.name) }
+                    )
+                }
+            }
+            
+            // Tab content
+            when (state.selectedTab) {
+                ClientDetailTab.GENERAL -> GeneralTabContent(state.client)
+                ClientDetailTab.USERS -> UsersTabContent(
+                    users = state.users,
+                    isLoading = state.isLoadingUsers,
+                    onAddUser = { 
+                        viewModel.onEvent(ClientDetailEvent.OnAddUserClicked) 
+                    }
+                )
+                // Other tabs...
+            }
+        }
+    }
+}
+```
+
+## Multi-Repository Coordination
+
+This ViewModel coordinates operations across seven repositories:
+
+1. `ClientsRepository` - Client CRUD
+2. `UsersRepository` - User management
+3. `GreenhousesRepository` - Greenhouse management
+4. `SectorsRepository` - Sector management
+5. `DevicesRepository` - Device management and catalogs
+6. `AlertsRepository` - Alert management and catalogs
+7. `SettingsRepository` - Settings management and catalogs
+
+## Related Types
+
+- See `ClientsViewModel` for the Client model
+- `User`, `Greenhouse`, `Sector`, `Device`, `Alert`, `Setting` - Domain models
+- `UserRole` - User role enumeration
+- `DeviceCatalogCategory`, `DeviceCatalogType`, `DeviceCatalogUnit` - Device catalogs
+- `AlertType`, `AlertSeverityCatalog` - Alert catalogs
+- `ActuatorState` - Actuator state catalog

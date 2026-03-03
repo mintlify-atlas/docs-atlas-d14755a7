@@ -1,0 +1,214 @@
+---
+title: SectorsRepository
+description: Repository interface for sector data operations
+---
+
+## Overview
+
+The `SectorsRepository` provides CRUD operations for managing sectors within greenhouses. Sectors are subdivisions of greenhouses where devices are installed. All methods are suspend functions that return `Result<T>` for consistent error handling.
+
+## Methods
+
+### getSectorsByTenantId()
+
+Fetches all sectors for a specific tenant.
+
+```kotlin
+suspend fun getSectorsByTenantId(tenantId: Long): Result<List<Sector>>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID to filter sectors by
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<List<Sector>>" type="Result">
+  Result containing a list of Sector objects or an error
+</ResponseField>
+
+---
+
+### createSector()
+
+Creates a new sector for a tenant.
+
+```kotlin
+suspend fun createSector(
+    tenantId: Long,
+    greenhouseId: Long,
+    name: String?
+): Result<Sector>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID the sector belongs to
+</ParamField>
+
+<ParamField path="greenhouseId" type="Long" required>
+  The greenhouse ID the sector belongs to
+</ParamField>
+
+<ParamField path="name" type="String">
+  The name of the sector (nullable)
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Sector>" type="Result">
+  Result containing the created Sector object or an error
+</ResponseField>
+
+---
+
+### updateSector()
+
+Updates an existing sector.
+
+```kotlin
+suspend fun updateSector(
+    tenantId: Long,
+    sectorId: Long,
+    greenhouseId: Long?,
+    name: String?
+): Result<Sector>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID the sector belongs to
+</ParamField>
+
+<ParamField path="sectorId" type="Long" required>
+  The sector ID to update
+</ParamField>
+
+<ParamField path="greenhouseId" type="Long">
+  New greenhouse ID (optional)
+</ParamField>
+
+<ParamField path="name" type="String">
+  New name (optional)
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Sector>" type="Result">
+  Result containing the updated Sector object or an error
+</ResponseField>
+
+---
+
+### deleteSector()
+
+Deletes a sector by ID.
+
+```kotlin
+suspend fun deleteSector(tenantId: Long, sectorId: Long): Result<Unit>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID the sector belongs to
+</ParamField>
+
+<ParamField path="sectorId" type="Long" required>
+  The sector ID to delete
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Unit>" type="Result">
+  Result indicating success or error
+</ResponseField>
+
+## Usage Example
+
+```kotlin
+class SectorsViewModel(
+    private val sectorsRepository: SectorsRepository
+) : ViewModel() {
+    
+    private val _sectors = MutableStateFlow<List<Sector>>(emptyList())
+    val sectors: StateFlow<List<Sector>> = _sectors.asStateFlow()
+    
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+    
+    fun loadSectors(tenantId: Long) {
+        viewModelScope.launch {
+            sectorsRepository.getSectorsByTenantId(tenantId)
+                .onSuccess { _sectors.value = it }
+                .onFailure { _error.value = it.message }
+        }
+    }
+    
+    fun createSector(
+        tenantId: Long,
+        greenhouseId: Long,
+        name: String?
+    ) {
+        viewModelScope.launch {
+            sectorsRepository.createSector(
+                tenantId = tenantId,
+                greenhouseId = greenhouseId,
+                name = name
+            )
+                .onSuccess { loadSectors(tenantId) }
+                .onFailure { _error.value = it.message }
+        }
+    }
+    
+    fun updateSector(
+        tenantId: Long,
+        sectorId: Long,
+        greenhouseId: Long?,
+        name: String?
+    ) {
+        viewModelScope.launch {
+            sectorsRepository.updateSector(
+                tenantId = tenantId,
+                sectorId = sectorId,
+                greenhouseId = greenhouseId,
+                name = name
+            )
+                .onSuccess { loadSectors(tenantId) }
+                .onFailure { _error.value = it.message }
+        }
+    }
+    
+    fun deleteSector(tenantId: Long, sectorId: Long) {
+        viewModelScope.launch {
+            sectorsRepository.deleteSector(tenantId, sectorId)
+                .onSuccess { loadSectors(tenantId) }
+                .onFailure { _error.value = it.message }
+        }
+    }
+}
+```
+
+## Dependency Injection
+
+Inject the repository using Koin in your Composables:
+
+```kotlin
+import org.koin.compose.viewmodel.koinViewModel
+
+@Composable
+fun SectorsScreen(tenantId: Long) {
+    val viewModel: SectorsViewModel = koinViewModel()
+    val sectors by viewModel.sectors.collectAsState()
+    
+    LaunchedEffect(tenantId) {
+        viewModel.loadSectors(tenantId)
+    }
+    
+    // UI implementation
+}
+```

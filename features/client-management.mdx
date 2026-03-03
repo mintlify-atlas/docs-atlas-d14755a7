@@ -1,0 +1,225 @@
+---
+title: Client Management
+description: Manage your greenhouse clients and tenant accounts with comprehensive CRUD operations
+---
+
+## Overview
+
+The Client Management feature allows administrators to manage all greenhouse clients (tenants) in the system. Each client represents a separate organization or business that uses the greenhouse monitoring platform. You can create new clients, view their details, update their information, and manage their account status.
+
+<Note>
+  Clients are the top-level organizational unit in the system. All greenhouses, users, devices, and settings belong to a specific client.
+</Note>
+
+## Accessing Client Management
+
+Navigate to the **Clients** section from the sidebar menu to access the client management dashboard. Here you'll see:
+
+- A searchable list of all clients
+- Filter options by status and location
+- Quick actions for creating, editing, and deleting clients
+- Pagination controls for large client lists
+
+## Client Status Types
+
+Clients can have one of three status types:
+
+<CardGroup cols={3}>
+  <Card title="Active" icon="check-circle">
+    Client account is fully operational and can access all features
+  </Card>
+  <Card title="Pending" icon="clock">
+    Client account is being set up or awaiting activation
+  </Card>
+  <Card title="Inactive" icon="ban">
+    Client account is disabled and cannot access the system
+  </Card>
+</CardGroup>
+
+## Creating a New Client
+
+Follow these steps to add a new client to the system:
+
+<Steps>
+  <Step title="Open the Create Dialog">
+    Click the **"New Client"** or **"+"** button in the clients list toolbar
+  </Step>
+  
+  <Step title="Enter Client Information">
+    Fill in the required fields in the client form:
+    
+    - **Name**: The client's business or organization name (minimum 2 characters)
+    - **Email**: Primary contact email address (must be valid format)
+    - **Phone**: Contact phone number
+    - **Province**: Geographic province or state
+    - **Country**: Country where the client is located
+    - **Location** (optional): GPS coordinates (latitude and longitude)
+    - **Status**: Choose ACTIVE, PENDING, or INACTIVE
+  </Step>
+  
+  <Step title="Submit the Form">
+    Click **"Create"** to save the new client. The system will:
+    - Generate a unique client code automatically
+    - Validate all required fields
+    - Add the client to the list
+    - Display a success confirmation
+  </Step>
+</Steps>
+
+<Warning>
+  Ensure the email address is unique and valid, as it may be used for system notifications and account recovery.
+</Warning>
+
+## Viewing Client Details
+
+Click on any client row in the list to navigate to the detailed client view. The client detail screen provides:
+
+### General Information Tab
+Displays the client's core information:
+- Client code and name
+- Contact details (email, phone)
+- Location information (province, country, GPS coordinates)
+- Current status indicator
+- Account creation and last update timestamps
+
+### Additional Tabs
+The client detail screen includes tabs for managing related resources:
+- **Users**: Manage user accounts for this client
+- **Greenhouses**: View and configure greenhouse facilities
+- **Sectors**: Organize greenhouse zones and areas
+- **Devices**: Monitor sensors and actuators
+- **Alerts**: Track system alerts and notifications
+- **Settings**: Configure client-specific parameters
+
+<Tip>
+  Each tab provides full CRUD operations for its respective resource type, all scoped to the selected client.
+</Tip>
+
+## Editing Client Information
+
+To update an existing client's information:
+
+<Steps>
+  <Step title="Access Edit Options">
+    From the clients list, click the **edit icon** (pencil) on the client row, or navigate to the client detail screen and click **"Edit Client"**
+  </Step>
+  
+  <Step title="Modify Information">
+    Update any of the following fields:
+    - Client name
+    - Email address
+    - Phone number
+    - Province and country
+    - GPS location coordinates
+    - Account status (ACTIVE, PENDING, INACTIVE)
+  </Step>
+  
+  <Step title="Save Changes">
+    Click **"Update"** to save your changes. The system will validate the data and update the client record
+  </Step>
+</Steps>
+
+<Note>
+  The client code is system-generated and cannot be modified after creation.
+</Note>
+
+## Managing Client Status
+
+You can change a client's status to control their access to the system:
+
+<Accordion title="Activating a Client">
+  Set the status to **ACTIVE** to give the client full access to their greenhouses, devices, and monitoring features. This is the standard operational status.
+</Accordion>
+
+<Accordion title="Setting to Pending">
+  Use **PENDING** status for clients who are in the onboarding process or awaiting setup completion. This status indicates the account exists but isn't fully operational yet.
+</Accordion>
+
+<Accordion title="Deactivating a Client">
+  Set the status to **INACTIVE** to temporarily disable access without deleting the account. All client data is preserved, but users cannot log in and monitoring is paused.
+</Accordion>
+
+## Filtering and Searching Clients
+
+The client list provides powerful filtering options:
+
+### Search Bar
+Enter text to search across:
+- Client names
+- Email addresses
+- Client codes
+
+The search updates in real-time as you type.
+
+### Status Filter
+Filter clients by their current status:
+- **All**: Show all clients regardless of status
+- **Active**: Show only operational clients
+- **Pending**: Show only clients awaiting activation
+- **Inactive**: Show only disabled clients
+
+### Location Filter
+Filter by province or geographic location to quickly find clients in specific regions.
+
+## Pagination
+
+For systems with many clients, the list is paginated:
+
+- **Page Size**: Choose how many clients to display per page (10, 25, 50, or 100)
+- **Navigation**: Use previous/next buttons or jump to a specific page
+- **Display Range**: See which clients you're viewing (e.g., "1-10 of 47 clients")
+
+## Deleting Clients
+
+To remove a client from the system:
+
+<Warning>
+  Deleting a client is a permanent action that will remove all associated data including users, greenhouses, devices, and historical records. This cannot be undone.
+</Warning>
+
+<Steps>
+  <Step title="Initiate Deletion">
+    Click the **delete icon** (trash can) on the client row, or navigate to the client detail screen and click **"Delete Client"**
+  </Step>
+  
+  <Step title="Confirm Deletion">
+    A confirmation dialog will appear asking you to verify the deletion. Review the client information carefully.
+  </Step>
+  
+  <Step title="Complete Deletion">
+    Click **"Confirm Delete"** to permanently remove the client and all associated data from the system.
+  </Step>
+</Steps>
+
+<Tip>
+  Consider setting the client to **INACTIVE** status instead of deleting if you want to preserve historical data while disabling access.
+</Tip>
+
+## Best Practices
+
+1. **Use Meaningful Names**: Choose clear, descriptive names that identify the business or organization
+2. **Keep Contact Info Current**: Regularly update email and phone information for reliable communication
+3. **Manage Status Appropriately**: Use PENDING for new setups, ACTIVE for operations, and INACTIVE for temporary suspensions
+4. **Add Location Data**: Include GPS coordinates when possible for geographic reporting and mapping features
+5. **Review Before Deleting**: Always verify you're deleting the correct client, as this action cannot be reversed
+
+## Common Workflows
+
+### Onboarding a New Client
+1. Create client with PENDING status
+2. Navigate to client detail screen
+3. Add initial users in the Users tab
+4. Configure greenhouses and sectors
+5. Update status to ACTIVE when ready
+
+### Temporarily Suspending Service
+1. Navigate to client detail
+2. Edit client information
+3. Change status from ACTIVE to INACTIVE
+4. Save changes
+
+### Reactivating a Client
+1. Filter clients by INACTIVE status
+2. Find the client to reactivate
+3. Edit and change status to ACTIVE
+4. Verify greenhouses and devices are operational

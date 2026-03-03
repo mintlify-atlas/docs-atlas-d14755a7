@@ -1,0 +1,442 @@
+---
+title: Kotlin Multiplatform
+description: How Greenhouse Admin uses Kotlin Multiplatform to share code across Android, iOS, Desktop, and Web
+---
+
+Greenhouse Admin is built with **Kotlin Multiplatform (KMP)** to maximize code sharing across all platforms while maintaining the flexibility to use platform-specific APIs when needed.
+
+## Source set structure
+
+The project uses a hierarchy of source sets to organize shared and platform-specific code:
+
+```
+composeApp/src/
+├── commonMain/          # Code shared across ALL platforms
+├── androidMain/         # Android-specific implementations
+├── iosMain/             # iOS-specific implementations
+├── jvmMain/             # Desktop (JVM) specific
+├── jsMain/              # JavaScript target
+├── wasmJsMain/          # WebAssembly target (primary web)
+└── webMain/             # Shared between JS and WasmJS
+```
+
+<Info>
+The **primary deployment target** is Web using WasmJS, with mobile platforms planned for future expansion.
+</Info>
+
+### Common main (shared code)
+
+The `commonMain` source set contains all code that's platform-agnostic:
+
+- **UI components** built with Compose Multiplatform
+- **Business logic** in ViewModels
+- **Repository interfaces** and implementations
+- **Domain models** and DTOs
+- **API services** using Ktor client
+- **DI modules** with Koin
+
+```kotlin commonMain example
+// Works identically on all platforms
+class LoginViewModel(
+    private val authRepository: AuthRepository
+) : ViewModel() {
+    // Platform-agnostic state management
+    private val _uiState = MutableStateFlow(LoginUiState())
+    val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
+}
+```
+
+### Platform-specific source sets
+
+Each platform has its own source set for platform-specific implementations:
+
+<Tabs>
+  <Tab title="Android">
+    **androidMain** contains Android-specific code:
+    
+    ```
+    androidMain/kotlin/com/apptolast/greenhouse/admin/
+    ├── GreenhouseApplication.kt    # Application class
+    ├── MainActivity.kt              # Main activity
+    ├── data/
+    │   └── local/
+    │       └── TokenStorage.android.kt  # Android token storage
+    └── di/
+        └── PlatformModule.android.kt    # Android DI
+    ```
+    
+    Example Android-specific implementation:
+    ```kotlin TokenStorage.android.kt
+    actual class TokenStorage actual constructor() {
+        // Android uses in-memory storage for now
+        // Production should use EncryptedSharedPreferences
+        private var accessToken: String? = null
+        
+        actual fun getAccessToken(): String? = accessToken
+        actual fun saveAccessToken(token: String) {
+            accessToken = token
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="iOS">
+    **iosMain** contains iOS-specific code:
+    
+    ```
+    iosMain/kotlin/com/apptolast/greenhouse/admin/
+    ├── MainViewController.kt
+    ├── data/
+    │   └── local/
+    │       └── TokenStorage.ios.kt      # iOS token storage
+    └── di/
+        └── PlatformModule.ios.kt        # iOS DI
+    ```
+    
+    Example iOS implementation using native APIs:
+    ```kotlin TokenStorage.ios.kt
+    import platform.Foundation.NSUserDefaults
+    
+    actual class TokenStorage actual constructor() {
+        private val defaults = NSUserDefaults.standardUserDefaults
+        
+        actual fun getAccessToken(): String? = 
+            defaults.stringForKey("greenhouse_access_token")
+            
+        actual fun saveAccessToken(token: String) {
+            defaults.setObject(token, "greenhouse_access_token")
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="JVM (Desktop)">
+    **jvmMain** for desktop applications:
+    
+    ```kotlin TokenStorage.jvm.kt
+    import java.util.prefs.Preferences
+    
+    actual class TokenStorage actual constructor() {
+        private val prefs = Preferences.userNodeForPackage(TokenStorage::class.java)
+        
+        actual fun getAccessToken(): String? = 
+            prefs.get("access_token", null)
+            
+        actual fun saveAccessToken(token: String) {
+            prefs.put("access_token", token)
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="WasmJS (Web)">
+    **wasmJsMain** is the primary web target:
+    
+    ```kotlin TokenStorage.wasmJs.kt
+    import kotlinx.browser.localStorage
+    
+    actual class TokenStorage actual constructor() {
+        actual fun getAccessToken(): String? = 
+            localStorage.getItem("greenhouse_access_token")
+            
+        actual fun saveAccessToken(token: String) {
+            localStorage.setItem("greenhouse_access_token", token)
+        }
+        
+        actual fun getRoles(): List<String> {
+            val rolesString = localStorage.getItem("greenhouse_roles") 
+                ?: return emptyList()
+            return rolesString.split(",").filter { it.isNotBlank() }
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Expect/actual pattern
+
+The **expect/actual** mechanism allows you to declare platform-specific APIs in common code and provide platform-specific implementations.
+
+### When to use expect/actual
+
+<Check>
+✅ **Use expect/actual when:**
+- No multiplatform library exists for the functionality
+- You need to access platform-native APIs
+- Different platforms require fundamentally different implementations
+- Creating factory functions for platform-specific types
+</Check>
+
+<Warning>
+❌ **Avoid expect/actual when:**
+- A multiplatform library already exists (use kotlinx-datetime instead of platform dates)
+- An interface with dependency injection would suffice
+- The logic can be abstracted into common code
+</Warning>
+
+### Expect/actual example: TokenStorage
+
+<Steps>
+  <Step title="Declare expect in commonMain">
+    Define the contract that all platforms must implement:
+    
+    ```kotlin commonMain/data/local/TokenStorage.kt
+    /**
+     * Platform-specific token storage for JWT tokens.
+     */
+    expect class TokenStorage() {
+        fun getAccessToken(): String?
+        fun saveAccessToken(token: String)
+        fun getTokenType(): String?
+        fun saveTokenType(type: String)
+        fun getUsername(): String?
+        fun saveUsername(username: String)
+        fun getRoles(): List<String>
+        fun saveRoles(roles: List<String>)
+        fun clearTokens()
+        fun isAuthenticated(): Boolean
+    }
+    ```
+  </Step>
+  
+  <Step title="Implement actual in each platform">
+    Each platform provides its own implementation:
+    
+    <Accordion title="Android implementation">
+      ```kotlin androidMain/data/local/TokenStorage.android.kt
+      actual class TokenStorage actual constructor() {
+          private var accessToken: String? = null
+          private var tokenType: String? = null
+          private var username: String? = null
+          private var roles: List<String> = emptyList()
+          
+          actual fun getAccessToken(): String? = accessToken
+          actual fun saveAccessToken(token: String) {
+              accessToken = token
+          }
+          // ... other methods
+      }
+      ```
+    </Accordion>
+    
+    <Accordion title="iOS implementation">
+      ```kotlin iosMain/data/local/TokenStorage.ios.kt
+      import platform.Foundation.NSUserDefaults
+      
+      actual class TokenStorage actual constructor() {
+          private val defaults = NSUserDefaults.standardUserDefaults
+          
+          actual fun getAccessToken(): String? = 
+              defaults.stringForKey(KEY_ACCESS_TOKEN)
+              
+          actual fun saveAccessToken(token: String) {
+              defaults.setObject(token, KEY_ACCESS_TOKEN)
+          }
+          
+          companion object {
+              private const val KEY_ACCESS_TOKEN = "greenhouse_access_token"
+          }
+      }
+      ```
+    </Accordion>
+    
+    <Accordion title="WasmJS implementation">
+      ```kotlin wasmJsMain/data/local/TokenStorage.wasmJs.kt
+      import kotlinx.browser.localStorage
+      
+      actual class TokenStorage actual constructor() {
+          actual fun getAccessToken(): String? = 
+              localStorage.getItem(KEY_ACCESS_TOKEN)
+              
+          actual fun saveAccessToken(token: String) {
+              localStorage.setItem(KEY_ACCESS_TOKEN, token)
+          }
+          
+          actual fun clearTokens() {
+              localStorage.removeItem(KEY_ACCESS_TOKEN)
+              localStorage.removeItem(KEY_TOKEN_TYPE)
+              localStorage.removeItem(KEY_USERNAME)
+              localStorage.removeItem(KEY_ROLES)
+          }
+          
+          companion object {
+              private const val KEY_ACCESS_TOKEN = "greenhouse_access_token"
+              private const val KEY_TOKEN_TYPE = "greenhouse_token_type"
+              private const val KEY_USERNAME = "greenhouse_username"
+              private const val KEY_ROLES = "greenhouse_roles"
+          }
+      }
+      ```
+    </Accordion>
+  </Step>
+  
+  <Step title="Use in common code">
+    The common code can now use `TokenStorage` without knowing about platform details:
+    
+    ```kotlin commonMain
+    class AuthRepositoryImpl(
+        private val authApiService: AuthApiService,
+        private val tokenStorage: TokenStorage  // Works on all platforms
+    ) : AuthRepository {
+        override suspend fun login(username: String, password: String): Result<UserSession> {
+            return runCatching {
+                val response = authApiService.login(username, password)
+                tokenStorage.saveAccessToken(response.token)  // Platform-specific
+                response.toUserSession()
+            }
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+### Platform modules pattern
+
+Platform-specific Koin modules use the expect/actual pattern:
+
+```kotlin commonMain/di/PlatformModule.kt
+// Declare that each platform will provide a module
+expect fun platformModule(): Module
+```
+
+```kotlin androidMain/di/PlatformModule.android.kt
+import org.koin.dsl.module
+
+actual fun platformModule() = module {
+    // Android-specific dependencies
+}
+```
+
+```kotlin wasmJsMain/di/PlatformModule.wasmJs.kt
+import org.koin.dsl.module
+
+actual fun platformModule() = module {
+    // WasmJS-specific dependencies
+}
+```
+
+## Platform-specific dependencies
+
+Different platforms require different Ktor engines:
+
+<CodeGroup>
+```toml Android/JVM
+[libraries]
+ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
+```
+
+```toml iOS
+[libraries]
+ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
+```
+
+```toml JS/WasmJS
+[libraries]
+ktor-client-js = { module = "io.ktor:ktor-client-js", version.ref = "ktor" }
+```
+</CodeGroup>
+
+These are automatically selected based on the target platform in the build configuration.
+
+## Building for different platforms
+
+<Tabs>
+  <Tab title="Web (Primary)">
+    ```bash
+    # WebAssembly (recommended)
+    ./gradlew :composeApp:wasmJsBrowserDevelopmentRun
+    
+    # JavaScript (legacy)
+    ./gradlew :composeApp:jsBrowserDevelopmentRun
+    
+    # Production build
+    ./gradlew :composeApp:wasmJsBrowserDistribution
+    ```
+    
+    <Warning>
+    After adding dependencies, update Yarn lock files:
+    ```bash
+    ./gradlew kotlinWasmUpgradeYarnLock  # For WasmJS
+    ./gradlew kotlinUpgradeYarnLock       # For JS
+    ```
+    </Warning>
+  </Tab>
+  
+  <Tab title="Android">
+    ```bash
+    # Debug APK
+    ./gradlew :composeApp:assembleDebug
+    
+    # Install on connected device
+    ./gradlew :composeApp:installDebug
+    ```
+  </Tab>
+  
+  <Tab title="Desktop">
+    ```bash
+    # Run desktop app
+    ./gradlew :composeApp:run
+    
+    # Package for distribution
+    ./gradlew :composeApp:packageDistributionForCurrentOS
+    ```
+  </Tab>
+  
+  <Tab title="iOS">
+    Open `iosApp/` directory in Xcode and build from there.
+  </Tab>
+</Tabs>
+
+## Code sharing statistics
+
+Greenhouse Admin achieves high code reuse across platforms:
+
+<CardGroup cols={2}>
+  <Card title="~95% UI code shared" icon="mobile">
+    All Compose UI components work identically on all platforms
+  </Card>
+  
+  <Card title="100% business logic shared" icon="brain">
+    ViewModels, repositories, and domain logic are fully shared
+  </Card>
+  
+  <Card title="100% network layer shared" icon="network-wired">
+    Ktor client and API services work everywhere
+  </Card>
+  
+  <Card title="~10% platform-specific" icon="layer-group">
+    Only storage, navigation, and entry points differ
+  </Card>
+</CardGroup>
+
+## Best practices
+
+<Steps>
+  <Step title="Maximize common code">
+    Write as much code as possible in `commonMain`. Only use platform-specific code when absolutely necessary.
+  </Step>
+  
+  <Step title="Prefer multiplatform libraries">
+    Use libraries like `kotlinx-datetime`, `kotlinx-coroutines`, and `kotlinx-serialization` instead of platform-specific alternatives.
+  </Step>
+  
+  <Step title="Keep platform code minimal">
+    Platform-specific implementations should be thin wrappers around native APIs.
+  </Step>
+  
+  <Step title="Test on all targets">
+    Regularly build and test on all supported platforms to catch platform-specific issues early.
+  </Step>
+</Steps>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Architecture" href="/concepts/architecture">
+    Learn about the MVVM architecture and dependency injection
+  </Card>
+  
+  <Card title="Authentication" href="/concepts/authentication">
+    See how auth works across all platforms
+  </Card>
+</CardGroup>

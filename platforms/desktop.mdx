@@ -1,0 +1,560 @@
+---
+title: Desktop Platform
+description: Build and deploy GreenhouseAdmin as a native desktop application for Windows, macOS, and Linux
+---
+
+# Desktop Platform
+
+Build and deploy GreenhouseAdmin as a native desktop application using Compose Multiplatform for Desktop (JVM). This guide covers running the desktop app, building native distributions, and desktop-specific features.
+
+## Overview
+
+The Desktop platform uses:
+- **Target**: JVM (Java Virtual Machine)
+- **JVM Version**: Java 11
+- **UI Framework**: Compose Multiplatform for Desktop
+- **HTTP Engine**: OkHttp (Ktor client)
+- **Distribution Formats**: DMG (macOS), MSI (Windows), DEB (Linux)
+
+<Note>
+  The desktop app shares the same Compose UI code as other platforms while running on the JVM.
+</Note>
+
+## Prerequisites
+
+<Steps>
+  <Step title="Install JDK">
+    Install JDK 11 or higher:
+
+    <Tabs>
+      <Tab title="macOS">
+        ```bash
+        # Using Homebrew
+        brew install openjdk@21
+        ```
+      </Tab>
+
+      <Tab title="Windows">
+        Download from [Oracle](https://www.oracle.com/java/technologies/downloads/) or [Adoptium](https://adoptium.net/)
+      </Tab>
+
+      <Tab title="Linux">
+        ```bash
+        # Ubuntu/Debian
+        sudo apt install openjdk-21-jdk
+
+        # Fedora
+        sudo dnf install java-21-openjdk
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Verify Java Installation">
+    Check Java version:
+
+    ```bash
+    java -version
+    ```
+
+    Should show Java 11 or higher.
+  </Step>
+
+  <Step title="Set JAVA_HOME (if needed)">
+    <CodeGroup>
+      ```bash macOS/Linux
+      export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+      ```
+
+      ```powershell Windows
+      $env:JAVA_HOME = "C:\Program Files\Java\jdk-21"
+      ```
+    </CodeGroup>
+  </Step>
+</Steps>
+
+## Configuration
+
+### Desktop-Specific Dependencies
+
+The desktop platform uses OkHttp for networking and Swing coroutines:
+
+```kotlin composeApp/build.gradle.kts
+jvmMain.dependencies {
+    implementation(compose.desktop.currentOs)
+    implementation(libs.kotlinx.coroutinesSwing)
+    
+    // Ktor - OkHttp engine for JVM
+    implementation(libs.ktor.client.okhttp)
+}
+```
+
+### Application Configuration
+
+Configure desktop application properties:
+
+```kotlin composeApp/build.gradle.kts
+compose.desktop {
+    application {
+        mainClass = "com.apptolast.greenhouse.admin.MainKt"
+
+        nativeDistributions {
+            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            packageName = "com.apptolast.greenhouse.admin"
+            packageVersion = "1.0.0"
+        }
+    }
+}
+```
+
+### Dependency Injection (Koin)
+
+Desktop requires platform-specific initialization in the main function:
+
+```kotlin jvmMain/.../Main.kt
+import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.application
+
+fun main() = application {
+    initKoin()  // Initialize Koin
+    
+    Window(
+        onCloseRequest = ::exitApplication,
+        title = "Greenhouse Admin"
+    ) {
+        App()  // Shared Compose UI from commonMain
+    }
+}
+```
+
+## Development
+
+### Running the Desktop App
+
+Run the desktop application directly:
+
+<CodeGroup>
+  ```bash macOS/Linux
+  ./gradlew :composeApp:run
+  ```
+
+  ```bash Windows
+  .\gradlew.bat :composeApp:run
+  ```
+</CodeGroup>
+
+The application window will launch immediately.
+
+### Hot Reload
+
+For faster development, use hot reload:
+
+```bash
+./gradlew :composeApp:run --continuous
+```
+
+The app will automatically rebuild and restart when you modify Kotlin files.
+
+<Note>
+  Hot reload works best with smaller code changes. Large refactors may require a full restart.
+</Note>
+
+## Building Native Distributions
+
+### Package for All Platforms
+
+Build distribution packages for all configured platforms:
+
+```bash
+./gradlew :composeApp:packageDistributionForCurrentOS
+```
+
+This creates platform-specific packages:
+- **macOS**: DMG installer
+- **Windows**: MSI installer
+- **Linux**: DEB package
+
+**Output Location**: `composeApp/build/compose/binaries/main/`
+
+### Platform-Specific Builds
+
+<Tabs>
+  <Tab title="macOS (DMG)">
+    Build a DMG installer for macOS:
+
+    ```bash
+    ./gradlew :composeApp:packageDmg
+    ```
+
+    **Output**: `composeApp/build/compose/binaries/main/dmg/`
+
+    <Note>
+      DMG creation requires macOS. For code signing, configure in `build.gradle.kts`:
+      ```kotlin
+      nativeDistributions {
+          macOS {
+              bundleID = "com.apptolast.greenhouse.admin"
+              signing {
+                  sign.set(true)
+                  identity.set("Developer ID Application: Your Name")
+              }
+          }
+      }
+      ```
+    </Note>
+  </Tab>
+
+  <Tab title="Windows (MSI)">
+    Build an MSI installer for Windows:
+
+    ```bash
+    ./gradlew :composeApp:packageMsi
+    ```
+
+    **Output**: `composeApp/build/compose/binaries/main/msi/`
+
+    <Note>
+      MSI creation requires Windows and WiX Toolset v3.
+      Download from [wixtoolset.org](https://wixtoolset.org/releases/)
+    </Note>
+  </Tab>
+
+  <Tab title="Linux (DEB)">
+    Build a DEB package for Debian/Ubuntu:
+
+    ```bash
+    ./gradlew :composeApp:packageDeb
+    ```
+
+    **Output**: `composeApp/build/compose/binaries/main/deb/`
+
+    Install the package:
+    ```bash
+    sudo dpkg -i greenhouse-admin_1.0.0_amd64.deb
+    ```
+  </Tab>
+</Tabs>
+
+### Executable JAR
+
+Build a runnable JAR file:
+
+```bash
+./gradlew :composeApp:packageUberJarForCurrentOS
+```
+
+**Output**: `composeApp/build/compose/jars/`
+
+Run the JAR:
+```bash
+java -jar composeApp-1.0.0.jar
+```
+
+<Warning>
+  The uber JAR includes all dependencies and can be 50-100MB in size.
+</Warning>
+
+## Desktop-Specific Features
+
+### Window Configuration
+
+Customize the desktop window:
+
+```kotlin jvmMain/.../Main.kt
+import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowState
+import androidx.compose.ui.window.application
+import androidx.compose.ui.unit.dp
+
+fun main() = application {
+    Window(
+        onCloseRequest = ::exitApplication,
+        title = "Greenhouse Admin",
+        state = WindowState(
+            width = 1280.dp,
+            height = 800.dp
+        ),
+        resizable = true,
+        icon = painterResource("app_icon.png")
+    ) {
+        App()
+    }
+}
+```
+
+### Menu Bar
+
+Add native menu bar (macOS/Windows):
+
+```kotlin jvmMain/.../Main.kt
+import androidx.compose.ui.window.MenuBar
+
+fun main() = application {
+    Window(
+        onCloseRequest = ::exitApplication,
+        title = "Greenhouse Admin"
+    ) {
+        MenuBar {
+            Menu("File") {
+                Item("Open", onClick = { /* ... */ })
+                Item("Save", onClick = { /* ... */ })
+                Separator()
+                Item("Exit", onClick = { exitApplication() })
+            }
+            Menu("Edit") {
+                Item("Cut", onClick = { /* ... */ })
+                Item("Copy", onClick = { /* ... */ })
+                Item("Paste", onClick = { /* ... */ })
+            }
+        }
+        App()
+    }
+}
+```
+
+### System Tray
+
+Add system tray icon:
+
+```kotlin jvmMain/.../Main.kt
+import androidx.compose.ui.window.Tray
+import androidx.compose.ui.window.TrayState
+
+fun main() = application {
+    var isVisible by remember { mutableStateOf(true) }
+    
+    Tray(
+        icon = painterResource("tray_icon.png"),
+        state = TrayState(),
+        tooltip = "Greenhouse Admin",
+        menu = {
+            Item("Show", onClick = { isVisible = true })
+            Item("Exit", onClick = ::exitApplication)
+        }
+    )
+    
+    if (isVisible) {
+        Window(
+            onCloseRequest = { isVisible = false },
+            title = "Greenhouse Admin"
+        ) {
+            App()
+        }
+    }
+}
+```
+
+### File Dialogs
+
+Use native file dialogs:
+
+```kotlin
+import androidx.compose.ui.window.AwtWindow
+import java.awt.FileDialog
+import java.awt.Frame
+import java.io.File
+
+@Composable
+fun FileChooser(
+    onFileSelected: (File?) -> Unit
+) {
+    AwtWindow(
+        create = {
+            object : FileDialog(null as Frame?, "Choose a file", LOAD) {
+                override fun setVisible(visible: Boolean) {
+                    super.setVisible(visible)
+                    if (visible) {
+                        val file = if (directory != null && file != null) {
+                            File(directory, file)
+                        } else null
+                        onFileSelected(file)
+                    }
+                }
+            }
+        },
+        dispose = FileDialog::dispose
+    )
+}
+```
+
+### Notifications
+
+Show system notifications:
+
+```kotlin jvmMain/.../Notifications.kt
+import androidx.compose.ui.window.Notification
+import androidx.compose.ui.window.TrayState
+
+fun showNotification(trayState: TrayState, message: String) {
+    trayState.sendNotification(
+        Notification(
+            title = "Greenhouse Admin",
+            message = message,
+            type = Notification.Type.Info
+        )
+    )
+}
+```
+
+## Distribution Configuration
+
+### Advanced Package Options
+
+Customize distribution packages:
+
+```kotlin composeApp/build.gradle.kts
+compose.desktop {
+    application {
+        nativeDistributions {
+            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            
+            packageName = "GreenhouseAdmin"
+            packageVersion = "1.0.0"
+            description = "Greenhouse client management portal"
+            copyright = "© 2024 AppToLast. All rights reserved."
+            vendor = "AppToLast"
+            
+            // Application icon
+            macOS {
+                iconFile.set(project.file("icons/app_icon.icns"))
+            }
+            windows {
+                iconFile.set(project.file("icons/app_icon.ico"))
+                menuGroup = "AppToLast"
+                upgradeUuid = "YOUR-UUID-HERE"
+            }
+            linux {
+                iconFile.set(project.file("icons/app_icon.png"))
+            }
+            
+            // Runtime modules (reduces package size)
+            modules(
+                "java.base",
+                "java.desktop",
+                "java.naming",
+                "java.sql",
+                "jdk.unsupported"
+            )
+        }
+    }
+}
+```
+
+### Code Signing (macOS)
+
+Sign and notarize macOS builds:
+
+```kotlin composeApp/build.gradle.kts
+nativeDistributions {
+    macOS {
+        bundleID = "com.apptolast.greenhouse.admin"
+        
+        signing {
+            sign.set(true)
+            identity.set("Developer ID Application: Your Name (TEAM_ID)")
+        }
+        
+        notarization {
+            appleID.set("your-apple-id@example.com")
+            password.set("@keychain:AC_PASSWORD")
+            ascProvider.set("TEAM_ID")
+        }
+    }
+}
+```
+
+## Performance Optimization
+
+### JVM Arguments
+
+Optimize JVM performance:
+
+```kotlin composeApp/build.gradle.kts
+compose.desktop {
+    application {
+        jvmArgs(
+            "-Xmx2G",
+            "-Xms512M",
+            "-XX:+UseG1GC",
+            "-Dfile.encoding=UTF-8"
+        )
+    }
+}
+```
+
+### Resource Embedding
+
+Embed resources in the JAR:
+
+```kotlin
+// Access embedded resources
+val imageStream = this::class.java.getResourceAsStream("/icons/logo.png")
+val image = imageStream?.use { ImageIO.read(it) }
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="UnsupportedClassVersionError">
+    **Error**: `UnsupportedClassVersionError: compiled with Java XX`
+
+    **Solution**: Ensure you're using Java 11 or higher:
+    ```bash
+    java -version
+    ./gradlew --version
+    ```
+
+    Set `JAVA_HOME` to the correct JDK version.
+  </Accordion>
+
+  <Accordion title="Package creation fails on macOS">
+    **Error**: DMG creation fails
+
+    **Solution**: Install Xcode command-line tools:
+    ```bash
+    xcode-select --install
+    ```
+  </Accordion>
+
+  <Accordion title="MSI creation fails on Windows">
+    **Error**: `WiX Toolset not found`
+
+    **Solution**: 
+    1. Install [WiX Toolset v3](https://wixtoolset.org/releases/)
+    2. Add WiX to PATH
+    3. Restart terminal/IDE
+  </Accordion>
+
+  <Accordion title="Application window is blank">
+    **Error**: Window opens but shows blank/black screen
+
+    **Solution**: Check for rendering issues:
+    ```kotlin
+    // Add hardware acceleration flag
+    System.setProperty("sun.java2d.opengl", "true")
+    ```
+  </Accordion>
+
+  <Accordion title="OkHttp SSL errors on corporate networks">
+    **Error**: SSL handshake failures
+
+    **Solution**: Add corporate CA certificates to Java keystore or configure Ktor to trust custom certificates.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Web Platform" icon="globe" href="/platforms/web">
+    Deploy as a web application
+  </Card>
+  <Card title="Android Platform" icon="android" href="/platforms/android">
+    Build and deploy to Android devices
+  </Card>
+  <Card title="iOS Platform" icon="apple" href="/platforms/ios">
+    Build and deploy to iOS devices
+  </Card>
+  <Card title="Multiplatform" icon="code-compare" href="/concepts/multiplatform">
+    Platform-specific implementations
+  </Card>
+</CardGroup>

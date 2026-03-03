@@ -1,0 +1,516 @@
+---
+title: Device Models
+description: Data models for sensors, actuators, and device catalog
+---
+
+Device models represent physical sensors and actuators within sectors. The system also includes a comprehensive catalog of device types, categories, and units.
+
+## Device
+
+Domain model representing a device (sensor or actuator). Devices belong to sectors, and the greenhouse is derived from the sector.
+
+```kotlin
+@Serializable
+data class Device(
+    val id: Long,
+    val code: String,
+    val tenantId: Long,
+    val sectorId: Long,
+    val sectorCode: String? = null,
+    val name: String? = null,
+    val categoryId: Short? = null,
+    val categoryName: String? = null,
+    val typeId: Short? = null,
+    val typeName: String? = null,
+    val unitId: Short? = null,
+    val unitSymbol: String? = null,
+    val isActive: Boolean = true,
+    val createdAt: String? = null,
+    val updatedAt: String? = null
+)
+```
+
+### Fields
+
+<ResponseField name="id" type="Long" required>
+  Unique identifier for the device
+</ResponseField>
+
+<ResponseField name="code" type="String" required>
+  Unique code assigned to the device
+</ResponseField>
+
+<ResponseField name="tenantId" type="Long" required>
+  ID of the tenant/client that owns this device
+</ResponseField>
+
+<ResponseField name="sectorId" type="Long" required>
+  ID of the sector this device belongs to
+</ResponseField>
+
+<ResponseField name="sectorCode" type="String" default="null">
+  Code of the parent sector (for display purposes)
+</ResponseField>
+
+<ResponseField name="name" type="String" default="null">
+  Optional custom name for the device
+</ResponseField>
+
+<ResponseField name="categoryId" type="Short" default="null">
+  ID of the device category (1 = Sensor, 2 = Actuator)
+</ResponseField>
+
+<ResponseField name="categoryName" type="String" default="null">
+  Name of the device category
+</ResponseField>
+
+<ResponseField name="typeId" type="Short" default="null">
+  ID of the device type from catalog
+</ResponseField>
+
+<ResponseField name="typeName" type="String" default="null">
+  Name of the device type (e.g., "Temperature", "Humidity")
+</ResponseField>
+
+<ResponseField name="unitId" type="Short" default="null">
+  ID of the measurement unit from catalog
+</ResponseField>
+
+<ResponseField name="unitSymbol" type="String" default="null">
+  Symbol of the measurement unit (e.g., "°C", "%")
+</ResponseField>
+
+<ResponseField name="isActive" type="Boolean" default="true">
+  Whether the device is currently active
+</ResponseField>
+
+<ResponseField name="createdAt" type="String" default="null">
+  ISO 8601 timestamp when the device was created
+</ResponseField>
+
+<ResponseField name="updatedAt" type="String" default="null">
+  ISO 8601 timestamp when the device was last updated
+</ResponseField>
+
+### Constants
+
+```kotlin
+companion object {
+    const val CATEGORY_SENSOR: Short = 1
+    const val CATEGORY_ACTUATOR: Short = 2
+}
+```
+
+### Computed Properties
+
+<ResponseField name="category" type="DeviceCategory">
+  Returns the device category enum based on `categoryId`.
+  
+  ```kotlin
+  val category: DeviceCategory
+      get() = when (categoryId) {
+          CATEGORY_SENSOR -> DeviceCategory.SENSOR
+          CATEGORY_ACTUATOR -> DeviceCategory.ACTUATOR
+          else -> DeviceCategory.SENSOR
+      }
+  ```
+</ResponseField>
+
+<ResponseField name="initial" type="String">
+  Returns the first letter for avatar display, checking name, type, category in order.
+  
+  ```kotlin
+  val initial: String
+      get() = name?.firstOrNull()?.uppercaseChar()?.toString()
+          ?: typeName?.firstOrNull()?.uppercaseChar()?.toString()
+          ?: categoryName?.firstOrNull()?.uppercaseChar()?.toString()
+          ?: "D"
+  ```
+  
+  Example: "Temperature Sensor" → "T", `null` → "D"
+</ResponseField>
+
+<ResponseField name="displayName" type="String">
+  Returns a human-readable display name combining available information.
+  
+  ```kotlin
+  val displayName: String
+      get() = name ?: buildString {
+          if (typeName != null) {
+              append(typeName)
+          } else if (categoryName != null) {
+              append(categoryName)
+          } else {
+              append("Device")
+          }
+          if (unitSymbol != null) {
+              append(" ($unitSymbol)")
+          }
+      }
+  ```
+  
+  Example: "Temperature (°C)" or "My Custom Sensor"
+</ResponseField>
+
+<ResponseField name="categoryDisplayName" type="String">
+  Returns a formatted category name for display.
+  
+  ```kotlin
+  val categoryDisplayName: String
+      get() = categoryName ?: when (categoryId) {
+          CATEGORY_SENSOR -> "Sensor"
+          CATEGORY_ACTUATOR -> "Actuator"
+          else -> "Unknown"
+      }
+  ```
+</ResponseField>
+
+## DeviceCategory
+
+Enum representing device categories.
+
+```kotlin
+enum class DeviceCategory {
+    SENSOR,
+    ACTUATOR
+}
+```
+
+### Values
+
+- **SENSOR**: Device that measures environmental parameters
+- **ACTUATOR**: Device that controls environmental conditions
+
+## API DTOs
+
+### DeviceResponse
+
+Response DTO from the API representing a device.
+
+```kotlin
+@Serializable
+data class DeviceResponse(
+    val id: Long,
+    val code: String,
+    val tenantId: Long,
+    val sectorId: Long,
+    val sectorCode: String? = null,
+    val name: String? = null,
+    val categoryId: Short? = null,
+    val categoryName: String? = null,
+    val typeId: Short? = null,
+    val typeName: String? = null,
+    val unitId: Short? = null,
+    val unitSymbol: String? = null,
+    val isActive: Boolean = true,
+    val createdAt: String,
+    val updatedAt: String
+)
+```
+
+<ResponseField name="toDevice" type="() -> Device">
+  Converts `DeviceResponse` to `Device` domain model.
+  
+  ```kotlin
+  fun DeviceResponse.toDevice() = Device(
+      id = id,
+      code = code,
+      tenantId = tenantId,
+      sectorId = sectorId,
+      sectorCode = sectorCode,
+      name = name,
+      categoryId = categoryId,
+      categoryName = categoryName,
+      typeId = typeId,
+      typeName = typeName,
+      unitId = unitId,
+      unitSymbol = unitSymbol,
+      isActive = isActive,
+      createdAt = createdAt,
+      updatedAt = updatedAt
+  )
+  ```
+</ResponseField>
+
+### DeviceCreateRequest
+
+Request DTO for creating a new device. Note: `sectorId` is required; greenhouse is derived from sector.
+
+```kotlin
+@Serializable
+data class DeviceCreateRequest(
+    val sectorId: Long,
+    val name: String? = null,
+    val categoryId: Short? = null,
+    val typeId: Short? = null,
+    val unitId: Short? = null,
+    val isActive: Boolean? = true
+)
+```
+
+### DeviceUpdateRequest
+
+Request DTO for updating an existing device. All fields are optional for partial updates.
+
+```kotlin
+@Serializable
+data class DeviceUpdateRequest(
+    val sectorId: Long? = null,
+    val name: String? = null,
+    val categoryId: Short? = null,
+    val typeId: Short? = null,
+    val unitId: Short? = null,
+    val isActive: Boolean? = null
+)
+```
+
+## Device Catalog Models
+
+The system includes a comprehensive catalog of device types, categories, and units.
+
+### DeviceCatalogCategory
+
+Domain model for device category from catalog.
+
+```kotlin
+data class DeviceCatalogCategory(
+    val id: Short,
+    val name: String
+)
+```
+
+#### API DTO
+
+```kotlin
+@Serializable
+data class DeviceCategoryResponse(
+    val id: Short,
+    val name: String
+)
+```
+
+### DeviceCatalogType
+
+Domain model for device type from catalog.
+
+```kotlin
+data class DeviceCatalogType(
+    val id: Short,
+    val name: String,
+    val description: String?,
+    val categoryId: Short,
+    val defaultUnitId: Short?,
+    val defaultUnitSymbol: String?,
+    val controlType: String?
+)
+```
+
+#### API DTO
+
+```kotlin
+@Serializable
+data class DeviceTypeResponse(
+    val id: Short,
+    val name: String,
+    val description: String? = null,
+    val categoryId: Short,
+    val categoryName: String? = null,
+    val defaultUnitId: Short? = null,
+    val defaultUnitSymbol: String? = null,
+    val dataType: String? = null,
+    val minExpectedValue: Double? = null,
+    val maxExpectedValue: Double? = null,
+    val controlType: String? = null,
+    val isActive: Boolean = true
+)
+```
+
+### DeviceCatalogUnit
+
+Domain model for measurement unit from catalog.
+
+```kotlin
+data class DeviceCatalogUnit(
+    val id: Short,
+    val symbol: String,
+    val name: String,
+    val description: String? = null,
+    val isActive: Boolean = true
+)
+```
+
+#### API DTO
+
+```kotlin
+@Serializable
+data class DeviceUnitResponse(
+    val id: Short,
+    val symbol: String,
+    val name: String,
+    val description: String? = null,
+    val isActive: Boolean = true
+)
+```
+
+### ActuatorState
+
+Domain model for actuator states (ON, OFF, STANDBY, etc.).
+
+```kotlin
+data class ActuatorState(
+    val id: Short,
+    val name: String,
+    val description: String?,
+    val isOperational: Boolean,
+    val displayOrder: Short,
+    val color: String?
+)
+```
+
+#### API DTO
+
+```kotlin
+@Serializable
+data class ActuatorStateResponse(
+    val id: Short,
+    val name: String,
+    val description: String? = null,
+    val isOperational: Boolean = false,
+    val displayOrder: Short = 0,
+    val color: String? = null
+)
+```
+
+## Catalog Request DTOs
+
+### DeviceCategoryCreateRequest
+
+```kotlin
+@Serializable
+data class DeviceCategoryCreateRequest(
+    val name: String
+)
+```
+
+### DeviceTypeCreateRequest
+
+```kotlin
+@Serializable
+data class DeviceTypeCreateRequest(
+    val name: String,
+    val description: String? = null,
+    val categoryId: Short,
+    val defaultUnitId: Short? = null,
+    val dataType: String? = null,
+    val minExpectedValue: Double? = null,
+    val maxExpectedValue: Double? = null,
+    val controlType: String? = null,
+    val isActive: Boolean = true
+)
+```
+
+### DeviceUnitCreateRequest
+
+```kotlin
+@Serializable
+data class DeviceUnitCreateRequest(
+    val symbol: String,
+    val name: String,
+    val description: String? = null,
+    val isActive: Boolean = true
+)
+```
+
+### ActuatorStateCreateRequest
+
+```kotlin
+@Serializable
+data class ActuatorStateCreateRequest(
+    val name: String,
+    val description: String? = null,
+    val isOperational: Boolean = false,
+    val displayOrder: Short = 0,
+    val color: String? = null
+)
+```
+
+## Usage Examples
+
+### Creating a Device
+
+```kotlin
+val device = Device(
+    id = 1L,
+    code = "DEV001",
+    tenantId = 1L,
+    sectorId = 1L,
+    sectorCode = "SEC001",
+    name = "Temperature Sensor 1",
+    categoryId = Device.CATEGORY_SENSOR,
+    categoryName = "Sensor",
+    typeId = 1,
+    typeName = "Temperature",
+    unitId = 1,
+    unitSymbol = "°C",
+    isActive = true
+)
+
+println(device.displayName) // "Temperature Sensor 1"
+println(device.category) // DeviceCategory.SENSOR
+println(device.initial) // "T"
+```
+
+### Creating a Device via API
+
+```kotlin
+val createRequest = DeviceCreateRequest(
+    sectorId = 1L,
+    name = "Humidity Sensor",
+    categoryId = Device.CATEGORY_SENSOR,
+    typeId = 2,
+    unitId = 2,
+    isActive = true
+)
+
+val response: DeviceResponse = apiClient.createDevice(
+    tenantId = 1L,
+    request = createRequest
+)
+
+val device: Device = response.toDevice()
+```
+
+### Filtering Devices by Category
+
+```kotlin
+val devices = getDevices(sectorId = 1L)
+val sensors = devices.filter { it.category == DeviceCategory.SENSOR }
+val actuators = devices.filter { it.category == DeviceCategory.ACTUATOR }
+
+println("Sensors: ${sensors.size}")
+println("Actuators: ${actuators.size}")
+```
+
+### Working with Catalog
+
+```kotlin
+// Fetch device types for sensors
+val categories = apiClient.getDeviceCategories()
+val sensorCategory = categories.find { it.id == Device.CATEGORY_SENSOR }
+
+// Get available device types
+val types = apiClient.getDeviceTypes()
+val temperatureType = types.find { it.name == "Temperature" }
+
+// Get available units
+val units = apiClient.getDeviceUnits()
+val celsiusUnit = units.find { it.symbol == "°C" }
+
+// Create device with catalog values
+val createRequest = DeviceCreateRequest(
+    sectorId = 1L,
+    categoryId = sensorCategory?.id,
+    typeId = temperatureType?.id,
+    unitId = celsiusUnit?.id
+)
+```

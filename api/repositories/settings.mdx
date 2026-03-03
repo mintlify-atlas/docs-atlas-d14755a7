@@ -1,0 +1,239 @@
+---
+title: SettingsRepository
+description: Repository interface for managing greenhouse settings
+---
+
+## Overview
+
+The `SettingsRepository` provides CRUD operations for managing greenhouse settings, which control device behavior and automation rules. Settings can be configured for different periods (day, night, all) and include actuator state configurations. All methods are suspend functions that return `Result<T>` for consistent error handling.
+
+## Catalog Methods
+
+### getPeriods()
+
+Retrieves all periods from the catalog. Periods define when a setting applies: DAY, NIGHT, or ALL (24h).
+
+```kotlin
+suspend fun getPeriods(): Result<List<Period>>
+```
+
+**Returns**
+
+<ResponseField name="Result<List<Period>>" type="Result">
+  Result containing a list of Period objects or an error
+</ResponseField>
+
+---
+
+### getActuatorStates()
+
+Retrieves all actuator states from the catalog. Actuator states define the state configuration (ON, OFF, AUTO, etc.).
+
+```kotlin
+suspend fun getActuatorStates(): Result<List<ActuatorState>>
+```
+
+**Returns**
+
+<ResponseField name="Result<List<ActuatorState>>" type="Result">
+  Result containing a list of ActuatorState objects or an error
+</ResponseField>
+
+## CRUD Methods
+
+### getSettingsByTenantId()
+
+Retrieves all settings for a specific tenant.
+
+```kotlin
+suspend fun getSettingsByTenantId(tenantId: Long): Result<List<Setting>>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The ID of the tenant
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<List<Setting>>" type="Result">
+  Result containing a list of Setting objects or an error
+</ResponseField>
+
+---
+
+### createSetting()
+
+Creates a new setting for a tenant.
+
+```kotlin
+suspend fun createSetting(tenantId: Long, request: SettingCreateRequest): Result<Setting>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The ID of the tenant
+</ParamField>
+
+<ParamField path="request" type="SettingCreateRequest" required>
+  The setting creation request
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Setting>" type="Result">
+  Result containing the created Setting object or an error
+</ResponseField>
+
+---
+
+### updateSetting()
+
+Updates an existing setting.
+
+```kotlin
+suspend fun updateSetting(tenantId: Long, settingId: Long, request: SettingUpdateRequest): Result<Setting>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The ID of the tenant
+</ParamField>
+
+<ParamField path="settingId" type="Long" required>
+  The ID of the setting to update
+</ParamField>
+
+<ParamField path="request" type="SettingUpdateRequest" required>
+  The setting update request
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Setting>" type="Result">
+  Result containing the updated Setting object or an error
+</ResponseField>
+
+---
+
+### deleteSetting()
+
+Deletes a setting by ID.
+
+```kotlin
+suspend fun deleteSetting(tenantId: Long, settingId: Long): Result<Unit>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The ID of the tenant
+</ParamField>
+
+<ParamField path="settingId" type="Long" required>
+  The ID of the setting to delete
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Unit>" type="Result">
+  Result indicating success or failure
+</ResponseField>
+
+## Usage Example
+
+```kotlin
+class SettingsViewModel(
+    private val settingsRepository: SettingsRepository
+) : ViewModel() {
+    
+    private val _settings = MutableStateFlow<List<Setting>>(emptyList())
+    val settings: StateFlow<List<Setting>> = _settings.asStateFlow()
+    
+    private val _periods = MutableStateFlow<List<Period>>(emptyList())
+    val periods: StateFlow<List<Period>> = _periods.asStateFlow()
+    
+    private val _actuatorStates = MutableStateFlow<List<ActuatorState>>(emptyList())
+    val actuatorStates: StateFlow<List<ActuatorState>> = _actuatorStates.asStateFlow()
+    
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+    
+    fun loadSettings(tenantId: Long) {
+        viewModelScope.launch {
+            settingsRepository.getSettingsByTenantId(tenantId)
+                .onSuccess { _settings.value = it }
+                .onFailure { _error.value = it.message }
+        }
+    }
+    
+    fun loadCatalogData() {
+        viewModelScope.launch {
+            // Load periods and actuator states in parallel
+            launch {
+                settingsRepository.getPeriods()
+                    .onSuccess { _periods.value = it }
+                    .onFailure { _error.value = it.message }
+            }
+            launch {
+                settingsRepository.getActuatorStates()
+                    .onSuccess { _actuatorStates.value = it }
+                    .onFailure { _error.value = it.message }
+            }
+        }
+    }
+    
+    fun createSetting(tenantId: Long, request: SettingCreateRequest) {
+        viewModelScope.launch {
+            settingsRepository.createSetting(tenantId, request)
+                .onSuccess { loadSettings(tenantId) }
+                .onFailure { _error.value = it.message }
+        }
+    }
+    
+    fun updateSetting(
+        tenantId: Long,
+        settingId: Long,
+        request: SettingUpdateRequest
+    ) {
+        viewModelScope.launch {
+            settingsRepository.updateSetting(tenantId, settingId, request)
+                .onSuccess { loadSettings(tenantId) }
+                .onFailure { _error.value = it.message }
+        }
+    }
+    
+    fun deleteSetting(tenantId: Long, settingId: Long) {
+        viewModelScope.launch {
+            settingsRepository.deleteSetting(tenantId, settingId)
+                .onSuccess { loadSettings(tenantId) }
+                .onFailure { _error.value = it.message }
+        }
+    }
+}
+```
+
+## Dependency Injection
+
+Inject the repository using Koin in your Composables:
+
+```kotlin
+import org.koin.compose.viewmodel.koinViewModel
+
+@Composable
+fun SettingsScreen(tenantId: Long) {
+    val viewModel: SettingsViewModel = koinViewModel()
+    val settings by viewModel.settings.collectAsState()
+    val periods by viewModel.periods.collectAsState()
+    
+    LaunchedEffect(Unit) {
+        viewModel.loadCatalogData()
+        viewModel.loadSettings(tenantId)
+    }
+    
+    // UI implementation
+}
+```

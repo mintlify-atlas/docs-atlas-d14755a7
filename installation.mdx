@@ -1,0 +1,525 @@
+---
+title: Installation
+description: Complete installation guide for Greenhouse Admin on all platforms
+---
+
+# Installation
+
+Greenhouse Admin supports Web, Android, iOS, and Desktop platforms. Follow the platform-specific instructions below to install and configure the application.
+
+## System requirements
+
+### Common requirements (all platforms)
+
+- **JDK 11 or higher** - For Gradle and Kotlin compilation
+- **Git** - For version control
+- **8GB RAM minimum** - 16GB recommended for optimal performance
+
+### Platform-specific requirements
+
+<Tabs>
+  <Tab title="Web">
+    - Modern browser with WebAssembly support:
+      - Chrome 119+
+      - Firefox 120+
+      - Safari 17+
+      - Edge 119+
+    - Node.js 18+ (automatically managed by Gradle)
+    - Yarn (automatically managed by Gradle)
+  </Tab>
+  
+  <Tab title="Android">
+    - Android Studio Hedgehog (2023.1.1) or later
+    - Android SDK with API levels:
+      - **Minimum:** API 24 (Android 7.0)
+      - **Target:** API 36 (Android 15)
+      - **Compile:** API 36
+    - Android device or emulator
+  </Tab>
+  
+  <Tab title="iOS">
+    - macOS 12.0 or later
+    - Xcode 14.0 or later
+    - CocoaPods (for dependency management)
+    - iOS 14.0+ device or simulator
+    - Apple Developer account (for device deployment)
+  </Tab>
+  
+  <Tab title="Desktop">
+    - **Windows:** Windows 10 or later
+    - **macOS:** macOS 11.0 or later
+    - **Linux:** Ubuntu 20.04 or equivalent
+    - JVM 11 or higher
+  </Tab>
+</Tabs>
+
+## Installation steps
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/apptolast/greenhouse-admin.git
+cd greenhouse-admin
+```
+
+### 2. Configure environment
+
+Create a `local.properties` file in the project root:
+
+```properties
+# API Configuration
+API_BASE_URL=https://your-api-endpoint.com/api/v1/
+
+# Android SDK path (auto-detected by Android Studio)
+sdk.dir=/path/to/Android/sdk
+```
+
+<Warning>
+The `API_BASE_URL` must include the trailing `/api/v1/` path. This value is injected at build time using BuildKonfig.
+</Warning>
+
+### 3. Verify Gradle setup
+
+Test your Gradle installation:
+
+```bash
+./gradlew --version
+```
+
+Expected output:
+```
+Gradle 8.x
+Kotlin: 2.3.0
+JVM: 11.x or higher
+```
+
+## Platform installation
+
+<Tabs>
+  <Tab title="Web">
+    ### Building for web
+    
+    Greenhouse Admin supports two web targets:
+    
+    #### WebAssembly (Recommended)
+    
+    For modern browsers with better performance:
+    
+    ```bash
+    # Development build with hot reload
+    ./gradlew :composeApp:wasmJsBrowserDevelopmentRun
+    
+    # Production build
+    ./gradlew :composeApp:wasmJsBrowserProductionWebpack
+    ```
+    
+    Output: `composeApp/build/dist/wasmJs/productionExecutable/`
+    
+    #### JavaScript (Legacy)
+    
+    For older browser compatibility:
+    
+    ```bash
+    # Development build with hot reload
+    ./gradlew :composeApp:jsBrowserDevelopmentRun
+    
+    # Production build
+    ./gradlew :composeApp:jsBrowserProductionWebpack
+    ```
+    
+    Output: `composeApp/build/dist/js/productionExecutable/`
+    
+    ### Updating web dependencies
+    
+    <Note>
+    After modifying dependencies in `build.gradle.kts`, update the Yarn lock files:
+    </Note>
+    
+    ```bash
+    # For JavaScript target
+    ./gradlew kotlinUpgradeYarnLock
+    
+    # For WebAssembly target  
+    ./gradlew kotlinWasmUpgradeYarnLock
+    ```
+    
+    ### Deploying to production
+    
+    After building, deploy the contents of the output directory to your web server:
+    
+    ```bash
+    # Example: Deploy to nginx
+    cp -r composeApp/build/dist/wasmJs/productionExecutable/* /var/www/html/
+    ```
+  </Tab>
+  
+  <Tab title="Android">
+    ### Building for Android
+    
+    #### Using Android Studio
+    
+    1. Open the project in Android Studio
+    2. Select the `composeApp` configuration from the run widget
+    3. Choose your target device/emulator
+    4. Click Run
+    
+    #### Using command line
+    
+    Build debug APK:
+    
+    ```bash
+    # macOS/Linux
+    ./gradlew :composeApp:assembleDebug
+    
+    # Windows
+    .\gradlew.bat :composeApp:assembleDebug
+    ```
+    
+    Output: `composeApp/build/outputs/apk/debug/composeApp-debug.apk`
+    
+    Build release APK:
+    
+    ```bash
+    ./gradlew :composeApp:assembleRelease
+    ```
+    
+    ### Android configuration
+    
+    The app is configured with the following settings (from `build.gradle.kts`):
+    
+    ```kotlin
+    android {
+        namespace = "com.apptolast.greenhouse.admin"
+        compileSdk = 36
+        
+        defaultConfig {
+            applicationId = "com.apptolast.greenhouse.admin"
+            minSdk = 24        // Android 7.0
+            targetSdk = 36     // Android 15
+            versionCode = 1
+            versionName = "1.0"
+        }
+    }
+    ```
+    
+    ### Signing for release
+    
+    Add signing configuration to `local.properties`:
+    
+    ```properties
+    RELEASE_STORE_FILE=/path/to/keystore.jks
+    RELEASE_STORE_PASSWORD=your_store_password
+    RELEASE_KEY_ALIAS=your_key_alias
+    RELEASE_KEY_PASSWORD=your_key_password
+    ```
+    
+    ### Installing on device
+    
+    ```bash
+    # Install debug build
+    adb install composeApp/build/outputs/apk/debug/composeApp-debug.apk
+    
+    # Or use Gradle
+    ./gradlew :composeApp:installDebug
+    ```
+  </Tab>
+  
+  <Tab title="iOS">
+    ### Building for iOS
+    
+    #### Prerequisites
+    
+    1. Install Xcode from the App Store
+    2. Install Xcode Command Line Tools:
+    
+    ```bash
+    xcode-select --install
+    ```
+    
+    #### Using Xcode
+    
+    1. Generate the Xcode project (first time only):
+    
+    ```bash
+    ./gradlew :composeApp:embedAndSignAppleFrameworkForXcode
+    ```
+    
+    2. Open the iOS project:
+    
+    ```bash
+    open iosApp/iosApp.xcodeproj
+    ```
+    
+    3. Select your target device or simulator
+    4. Click the Run button
+    
+    #### iOS framework configuration
+    
+    The Kotlin framework is configured in `build.gradle.kts`:
+    
+    ```kotlin
+    listOf(
+        iosArm64(),           // Physical devices
+        iosSimulatorArm64()   // Simulator on M1/M2 Macs
+    ).forEach { iosTarget ->
+        iosTarget.binaries.framework {
+            baseName = "ComposeApp"
+            isStatic = true
+        }
+    }
+    ```
+    
+    ### Platform initialization
+    
+    Koin is initialized in the iOS app (Swift):
+    
+    ```swift
+    import ComposeApp
+    
+    @main
+    struct iOSApp: App {
+        init() {
+            KoinInitializerKt.doInitKoin()
+        }
+        
+        var body: some Scene {
+            WindowGroup {
+                ContentView()
+            }
+        }
+    }
+    ```
+    
+    ### Testing on simulator
+    
+    ```bash
+    # List available simulators
+    xcrun simctl list devices
+    
+    # Boot a simulator
+    xcrun simctl boot "iPhone 15 Pro"
+    ```
+  </Tab>
+  
+  <Tab title="Desktop">
+    ### Building for desktop
+    
+    #### Run during development
+    
+    ```bash
+    # macOS/Linux
+    ./gradlew :composeApp:run
+    
+    # Windows
+    .\gradlew.bat :composeApp:run
+    ```
+    
+    #### Create distributable packages
+    
+    ```bash
+    # Create native installers
+    ./gradlew :composeApp:packageDistributionForCurrentOS
+    
+    # Or specify format:
+    ./gradlew :composeApp:packageDmg    # macOS
+    ./gradlew :composeApp:packageMsi    # Windows
+    ./gradlew :composeApp:packageDeb    # Linux
+    ```
+    
+    Output formats (from `build.gradle.kts`):
+    
+    ```kotlin
+    compose.desktop {
+        application {
+            mainClass = "com.apptolast.greenhouse.admin.MainKt"
+            
+            nativeDistributions {
+                targetFormats(
+                    TargetFormat.Dmg,    // macOS
+                    TargetFormat.Msi,    // Windows
+                    TargetFormat.Deb     // Linux
+                )
+                packageName = "com.apptolast.greenhouse.admin"
+                packageVersion = "1.0.0"
+            }
+        }
+    }
+    ```
+    
+    ### Desktop-specific dependencies
+    
+    The JVM target uses Swing coroutines:
+    
+    ```kotlin
+    jvmMain.dependencies {
+        implementation(compose.desktop.currentOs)
+        implementation(libs.kotlinx.coroutinesSwing)
+        implementation(libs.ktor.client.okhttp)
+    }
+    ```
+    
+    ### Platform-specific code
+    
+    Desktop-specific code goes in `composeApp/src/jvmMain/kotlin/`:
+    
+    ```kotlin
+    // jvmMain/kotlin/Platform.jvm.kt
+    actual fun getPlatform(): Platform = Platform.Desktop
+    ```
+  </Tab>
+</Tabs>
+
+## Dependency management
+
+### Version catalog
+
+All dependencies are managed in `gradle/libs.versions.toml`:
+
+```toml
+[versions]
+kotlin = "2.3.0"
+composeMultiplatform = "1.10.0"
+koin-bom = "4.1.1"
+ktor = "3.4.0"
+kotlinx-serialization = "1.10.0"
+
+[libraries]
+koin-bom = { module = "io.insert-koin:koin-bom", version.ref = "koin-bom" }
+koin-core = { module = "io.insert-koin:koin-core" }
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+```
+
+### Platform-specific engines
+
+Ktor uses different HTTP engines per platform:
+
+| Platform | Engine | Library |
+| --- | --- | --- |
+| Android | OkHttp | `ktor-client-okhttp` |
+| iOS | Darwin | `ktor-client-darwin` |
+| Desktop (JVM) | OkHttp | `ktor-client-okhttp` |
+| Web (JS/Wasm) | JavaScript | `ktor-client-js` |
+
+## IDE setup
+
+### IntelliJ IDEA / Android Studio
+
+1. **Install required plugins:**
+   - Kotlin Multiplatform Mobile (KMM)
+   - Compose Multiplatform IDE Support
+
+2. **Configure Kotlin plugin:**
+   - Go to Settings → Languages & Frameworks → Kotlin
+   - Ensure "Use compiler from 'kotlin-compiler-embeddable'" is enabled
+
+3. **Set up run configurations:**
+   - The IDE will automatically detect available run configurations
+   - Use the run widget in the toolbar to switch between platforms
+
+### Recommended settings
+
+```kotlin
+// Enable experimental features
+compilerOptions {
+    freeCompilerArgs.add("-Xexpect-actual-classes")
+}
+
+languageSettings {
+    enableLanguageFeature("ExplicitBackingFields")
+}
+```
+
+## Verification
+
+Verify your installation by running the test suite:
+
+```bash
+# Run all tests
+./gradlew test
+
+# Run tests for specific platform
+./gradlew :composeApp:jvmTest
+./gradlew :composeApp:iosSimulatorArm64Test
+```
+
+<Note>
+All tests should pass before proceeding with development. If tests fail, check your JDK version and environment configuration.
+</Note>
+
+## Troubleshooting
+
+### Gradle build fails
+
+**Issue:** `Could not resolve all dependencies`
+
+**Solution:** Clear Gradle cache and rebuild:
+
+```bash
+./gradlew clean
+rm -rf ~/.gradle/caches
+./gradlew build --refresh-dependencies
+```
+
+### iOS build fails
+
+**Issue:** `Framework not found ComposeApp`
+
+**Solution:** Rebuild the Kotlin framework:
+
+```bash
+./gradlew :composeApp:embedAndSignAppleFrameworkForXcode
+```
+
+### Web build fails with Yarn errors
+
+**Issue:** `Yarn lock file is outdated`
+
+**Solution:** Upgrade the Yarn lock files:
+
+```bash
+./gradlew kotlinUpgradeYarnLock
+./gradlew kotlinWasmUpgradeYarnLock
+```
+
+### Android build fails
+
+**Issue:** `SDK location not found`
+
+**Solution:** Ensure `local.properties` contains the correct SDK path:
+
+```properties
+sdk.dir=/Users/username/Library/Android/sdk
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Quickstart"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Learn how to run your first build
+  </Card>
+  <Card
+    title="Building"
+    icon="hammer"
+    href="/development/building"
+  >
+    Build for all platforms
+  </Card>
+  <Card
+    title="Architecture"
+    icon="diagram-project"
+    href="/concepts/architecture"
+  >
+    Understand the project structure
+  </Card>
+  <Card
+    title="Development setup"
+    icon="code"
+    href="/development/setup"
+  >
+    Complete development environment setup
+  </Card>
+</CardGroup>

@@ -1,0 +1,519 @@
+---
+title: Authentication Implementation
+description: Complete guide to JWT authentication, token storage, and session management in GreenhouseAdmin
+---
+
+## Overview
+
+GreenhouseAdmin uses **JWT (JSON Web Token)** authentication with secure token storage across all platforms. The `AuthRepository` handles all authentication operations including login, logout, and session validation.
+
+## AuthRepository Interface
+
+The `AuthRepository` interface defines the contract for authentication operations:
+
+```kotlin
+package com.apptolast.greenhouse.admin.domain.repository
+
+interface AuthRepository {
+    /**
+     * Authenticate user with username and password.
+     * Stores the token on successful login.
+     */
+    suspend fun login(username: String, password: String): Result<UserSession>
+    
+    /**
+     * Log out the current user.
+     * Calls the server logout endpoint and clears stored tokens.
+     */
+    suspend fun logout(): Result<Unit>
+    
+    /**
+     * Clear local tokens without calling the server.
+     * Used for immediate local logout.
+     */
+    fun clearLocalSession()
+    
+    /**
+     * Check if user is currently authenticated.
+     */
+    fun isAuthenticated(): Boolean
+    
+    /**
+     * Get the current user session if authenticated.
+     */
+    fun getCurrentSession(): UserSession?
+    
+    /**
+     * Validates the current session with the backend.
+     * Makes a lightweight API call to verify the token is still valid.
+     */
+    suspend fun validateSession(): Boolean
+}
+```
+
+## Authentication Flow
+
+### 1. Login
+
+The login flow authenticates the user and stores the JWT token securely:
+
+```kotlin
+class AuthRepositoryImpl(
+    private val authApiService: AuthApiService,
+    private val tokenStorage: TokenStorage
+) : AuthRepository {
+    
+    override suspend fun login(username: String, password: String): Result<UserSession> {
+        return runCatching {
+            // Call API to get JWT token
+            val response = authApiService.login(username, password)
+            
+            // Store tokens securely
+            tokenStorage.saveAccessToken(response.token)
+            tokenStorage.saveTokenType(response.type)
+            tokenStorage.saveUsername(response.username)
+            tokenStorage.saveRoles(response.roles)
+            
+            // Return user session
+            response.toUserSession()
+        }
+    }
+}
+```
+
+**API Request:**
+```http
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin@example.com",
+  "password": "secret123"
+}
+```
+
+**API Response:**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "type": "Bearer",
+  "username": "admin@example.com",
+  "roles": ["ROLE_ADMIN"]
+}
+```
+
+### 2. Token Storage
+
+Tokens are stored securely using platform-specific mechanisms:
+
+```kotlin
+expect class TokenStorage() {
+    fun getAccessToken(): String?
+    fun saveAccessToken(token: String)
+    fun getTokenType(): String?
+    fun saveTokenType(type: String)
+    fun getUsername(): String?
+    fun saveUsername(username: String)
+    fun getRoles(): List<String>
+    fun saveRoles(roles: List<String>)
+    fun clearTokens()
+    fun isAuthenticated(): Boolean
+}
+```
+
+**Platform Implementations:**
+
+<Tabs>
+  <Tab title="Android">
+    ```kotlin
+    // Uses SharedPreferences with encryption
+    actual class TokenStorage {
+        private val prefs = context.getSharedPreferences(
+            "auth_prefs", 
+            Context.MODE_PRIVATE
+        )
+        
+        actual fun saveAccessToken(token: String) {
+            prefs.edit().putString("access_token", token).apply()
+        }
+        
+        actual fun getAccessToken(): String? {
+            return prefs.getString("access_token", null)
+        }
+        
+        // ... other methods
+    }
+    ```
+  </Tab>
+  
+  <Tab title="iOS">
+    ```kotlin
+    // Uses Keychain for secure storage
+    actual class TokenStorage {
+        actual fun saveAccessToken(token: String) {
+            // Store in iOS Keychain
+            KeychainHelper.save(key: "access_token", value: token)
+        }
+        
+        actual fun getAccessToken(): String? {
+            return KeychainHelper.get(key: "access_token")
+        }
+        
+        // ... other methods
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Web">
+    ```kotlin
+    // Uses localStorage (consider sessionStorage for sensitive data)
+    actual class TokenStorage {
+        actual fun saveAccessToken(token: String) {
+            localStorage.setItem("access_token", token)
+        }
+        
+        actual fun getAccessToken(): String? {
+            return localStorage.getItem("access_token")
+        }
+        
+        // ... other methods
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### 3. Using Stored Tokens
+
+The HTTP client automatically attaches the JWT token to all authenticated requests:
+
+```kotlin
+fun createHttpClient(
+    tokenStorage: TokenStorage,
+    authEventManager: AuthEventManager
+): HttpClient = HttpClient {
+    install(ContentNegotiation) {
+        json(Json {
+            ignoreUnknownKeys = true
+            prettyPrint = true
+        })
+    }
+    
+    install(Logging) {
+        level = LogLevel.INFO
+    }
+    
+    // Add authentication header to all requests
+    install(Auth) {
+        bearer {
+            loadTokens {
+                val token = tokenStorage.getAccessToken()
+                val tokenType = tokenStorage.getTokenType() ?: "Bearer"
+                token?.let {
+                    BearerTokens(accessToken = it, refreshToken = "")
+                }
+            }
+        }
+    }
+    
+    defaultRequest {
+        url(Environment.current.baseUrl)
+        contentType(ContentType.Application.Json)
+    }
+}
+```
+
+### 4. Logout
+
+Logout clears the server session and local tokens:
+
+```kotlin
+override suspend fun logout(): Result<Unit> {
+    return runCatching {
+        // Call server logout endpoint (best effort)
+        try {
+            authApiService.logout()
+        } catch (_: Exception) {
+            // Ignore server errors, we'll clear local tokens anyway
+        }
+        
+        // Always clear local tokens
+        tokenStorage.clearTokens()
+    }
+}
+```
+
+**API Request:**
+```http
+POST /api/v1/auth/logout
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+### 5. Session Validation
+
+Validate the current session to check if the token is still valid:
+
+```kotlin
+override suspend fun validateSession(): Boolean {
+    // If no token exists, session is invalid
+    if (!tokenStorage.isAuthenticated()) return false
+    
+    return try {
+        // Make a lightweight API call to validate the token
+        authApiService.validateToken()
+        true
+    } catch (e: AuthenticationException) {
+        // Token is expired or invalid - clear it
+        tokenStorage.clearTokens()
+        false
+    } catch (e: Exception) {
+        // Network error - assume valid to avoid logout on network problems
+        true
+    }
+}
+```
+
+## Data Models
+
+### JwtResponse
+
+Response from the login API:
+
+```kotlin
+@Serializable
+data class JwtResponse(
+    val token: String,
+    val type: String = "Bearer",
+    val username: String,
+    val roles: List<String> = emptyList()
+)
+```
+
+### UserSession
+
+Represents the authenticated user session in the app:
+
+```kotlin
+data class UserSession(
+    val token: String,
+    val tokenType: String,
+    val username: String,
+    val roles: List<String>
+) {
+    val isAdmin: Boolean
+        get() = roles.any { it.equals("ROLE_ADMIN", ignoreCase = true) }
+}
+
+// Extension to convert JwtResponse to UserSession
+fun JwtResponse.toUserSession(): UserSession = UserSession(
+    token = token,
+    tokenType = type,
+    username = username,
+    roles = roles
+)
+```
+
+## Usage Examples
+
+### Login Screen ViewModel
+
+```kotlin
+class LoginViewModel(
+    private val authRepository: AuthRepository
+) : ViewModel() {
+    
+    private val _loginState = MutableStateFlow<LoginState>(LoginState.Idle)
+    val loginState: StateFlow<LoginState> = _loginState.asStateFlow()
+    
+    fun login(username: String, password: String) {
+        viewModelScope.launch {
+            _loginState.value = LoginState.Loading
+            
+            authRepository.login(username, password)
+                .onSuccess { userSession ->
+                    _loginState.value = LoginState.Success(userSession)
+                }
+                .onFailure { exception ->
+                    _loginState.value = LoginState.Error(
+                        exception.message ?: "Login failed"
+                    )
+                }
+        }
+    }
+}
+
+sealed class LoginState {
+    object Idle : LoginState()
+    object Loading : LoginState()
+    data class Success(val session: UserSession) : LoginState()
+    data class Error(val message: String) : LoginState()
+}
+```
+
+### Protected Screen ViewModel
+
+```kotlin
+class DashboardViewModel(
+    private val authRepository: AuthRepository,
+    private val dashboardRepository: DashboardRepository
+) : ViewModel() {
+    
+    init {
+        // Check authentication on init
+        checkAuthentication()
+    }
+    
+    private fun checkAuthentication() {
+        viewModelScope.launch {
+            val isValid = authRepository.validateSession()
+            if (!isValid) {
+                // Redirect to login
+                _navigationEvent.emit(NavigationEvent.Login)
+            }
+        }
+    }
+    
+    fun logout() {
+        viewModelScope.launch {
+            authRepository.logout()
+            _navigationEvent.emit(NavigationEvent.Login)
+        }
+    }
+}
+```
+
+### Navigation Guard
+
+```kotlin
+@Composable
+fun AppNavigation(
+    authRepository: AuthRepository = koinInject()
+) {
+    val isAuthenticated = remember { authRepository.isAuthenticated() }
+    val currentSession = remember { authRepository.getCurrentSession() }
+    
+    NavHost(
+        startDestination = if (isAuthenticated) "dashboard" else "login"
+    ) {
+        composable("login") {
+            LoginScreen(
+                onLoginSuccess = { navController.navigate("dashboard") }
+            )
+        }
+        
+        composable("dashboard") {
+            // Protected route - requires authentication
+            if (!isAuthenticated) {
+                LaunchedEffect(Unit) {
+                    navController.navigate("login") {
+                        popUpTo("dashboard") { inclusive = true }
+                    }
+                }
+            } else {
+                DashboardScreen()
+            }
+        }
+    }
+}
+```
+
+## Token Expiration Handling
+
+When a token expires, the API returns a 401/403 status. The HTTP client intercepts this and triggers session cleanup:
+
+```kotlin
+install(HttpResponseValidator) {
+    validateResponse { response ->
+        when (response.status) {
+            HttpStatusCode.Unauthorized,
+            HttpStatusCode.Forbidden -> {
+                // Token expired or invalid
+                tokenStorage.clearTokens()
+                authEventManager.emitSessionExpired()
+                throw AuthenticationException("Session expired")
+            }
+        }
+    }
+}
+```
+
+## Security Best Practices
+
+<AccordionGroup>
+  <Accordion title="Secure Token Storage">
+    - **Android**: Use `EncryptedSharedPreferences` instead of plain SharedPreferences
+    - **iOS**: Always use Keychain, never UserDefaults
+    - **Web**: Consider `sessionStorage` for more sensitive apps (cleared on tab close)
+    - Never log tokens or store them in plain text
+  </Accordion>
+  
+  <Accordion title="Token Lifecycle">
+    - Clear tokens on logout (both local and server-side)
+    - Validate tokens before critical operations
+    - Handle token expiration gracefully
+    - Implement token refresh if your backend supports it
+  </Accordion>
+  
+  <Accordion title="HTTPS Only">
+    - Always use HTTPS in production
+    - Never transmit tokens over unencrypted connections
+    - Pin SSL certificates for additional security
+  </Accordion>
+  
+  <Accordion title="Role-Based Access">
+    ```kotlin
+    val session = authRepository.getCurrentSession()
+    if (session?.isAdmin == true) {
+        // Show admin features
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## API Reference
+
+### AuthApiService
+
+Low-level API service used by `AuthRepository`:
+
+```kotlin
+class AuthApiService(private val httpClient: HttpClient) {
+    
+    suspend fun login(username: String, password: String): JwtResponse {
+        return httpClient.post("auth/login") {
+            setBody(LoginRequest(username = username, password = password))
+        }.body()
+    }
+    
+    suspend fun logout() {
+        httpClient.post("auth/logout")
+    }
+    
+    suspend fun validateToken() {
+        // Uses a minimal authenticated endpoint to validate token
+        httpClient.get("tenants") {
+            url.parameters.append("page", "0")
+            url.parameters.append("size", "1")
+        }
+    }
+}
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="API Overview" icon="map" href="/api/overview">
+    Learn about the repository pattern architecture
+  </Card>
+  
+  <Card title="UsersRepository" icon="users" href="/api/repositories/users">
+    Manage user accounts and roles
+  </Card>
+  
+  <Card title="ClientsRepository" icon="building" href="/api/repositories/clients">
+    Manage greenhouse clients and tenants
+  </Card>
+  
+  <Card title="Data Models" icon="database" href="/api/models/user">
+    Explore authentication data models
+  </Card>
+</CardGroup>

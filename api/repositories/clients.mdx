@@ -1,0 +1,171 @@
+---
+title: ClientsRepository
+description: Repository interface for client data operations
+---
+
+## Overview
+
+The `ClientsRepository` provides CRUD operations for managing clients in the Greenhouse Admin system. All methods are suspend functions that return `Result<T>` for consistent error handling.
+
+## Methods
+
+### getClients()
+
+Fetches all clients from the backend.
+
+```kotlin
+suspend fun getClients(): Result<List<Client>>
+```
+
+**Returns**
+
+<ResponseField name="Result<List<Client>>" type="Result">
+  Result containing a list of Client objects or an error
+</ResponseField>
+
+---
+
+### getClientById()
+
+Fetches a specific client by ID.
+
+```kotlin
+suspend fun getClientById(id: Long): Result<Client>
+```
+
+**Parameters**
+
+<ParamField path="id" type="Long" required>
+  The client ID to fetch
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Client>" type="Result">
+  Result containing the Client object or an error
+</ResponseField>
+
+---
+
+### createClient()
+
+Creates a new client.
+
+```kotlin
+suspend fun createClient(client: Client): Result<Client>
+```
+
+**Parameters**
+
+<ParamField path="client" type="Client" required>
+  The client data to create
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Client>" type="Result">
+  Result containing the created Client object or an error
+</ResponseField>
+
+---
+
+### updateClient()
+
+Updates an existing client.
+
+```kotlin
+suspend fun updateClient(client: Client): Result<Client>
+```
+
+**Parameters**
+
+<ParamField path="client" type="Client" required>
+  The client data to update (must include a valid id)
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Client>" type="Result">
+  Result containing the updated Client object or an error
+</ResponseField>
+
+---
+
+### deleteClient()
+
+Deletes a client by ID.
+
+```kotlin
+suspend fun deleteClient(id: Long): Result<Unit>
+```
+
+**Parameters**
+
+<ParamField path="id" type="Long" required>
+  The client ID to delete
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Unit>" type="Result">
+  Result indicating success or error
+</ResponseField>
+
+## Usage Example
+
+```kotlin
+class ClientsViewModel(
+    private val clientsRepository: ClientsRepository
+) : ViewModel() {
+    
+    private val _clients = MutableStateFlow<List<Client>>(emptyList())
+    val clients: StateFlow<List<Client>> = _clients.asStateFlow()
+    
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+    
+    init {
+        loadClients()
+    }
+    
+    fun loadClients() {
+        viewModelScope.launch {
+            clientsRepository.getClients()
+                .onSuccess { _clients.value = it }
+                .onFailure { _error.value = it.message }
+        }
+    }
+    
+    fun createClient(client: Client) {
+        viewModelScope.launch {
+            clientsRepository.createClient(client)
+                .onSuccess { loadClients() }
+                .onFailure { _error.value = it.message }
+        }
+    }
+    
+    fun deleteClient(id: Long) {
+        viewModelScope.launch {
+            clientsRepository.deleteClient(id)
+                .onSuccess { loadClients() }
+                .onFailure { _error.value = it.message }
+        }
+    }
+}
+```
+
+## Dependency Injection
+
+Inject the repository using Koin in your Composables:
+
+```kotlin
+import org.koin.compose.viewmodel.koinViewModel
+
+@Composable
+fun ClientsScreen() {
+    val viewModel: ClientsViewModel = koinViewModel()
+    val clients by viewModel.clients.collectAsState()
+    
+    // UI implementation
+}
+```

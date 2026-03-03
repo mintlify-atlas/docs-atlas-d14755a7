@@ -1,0 +1,286 @@
+---
+title: Greenhouse Management
+description: Configure and manage greenhouse facilities, zones, and sectors for your clients
+---
+
+## Overview
+
+Greenhouse Management allows you to configure and organize the physical greenhouse facilities for each client. A greenhouse represents a physical structure where crops are grown under controlled conditions. Each greenhouse can contain multiple sectors (zones or areas) and is equipped with monitoring devices.
+
+<Note>
+  Greenhouses belong to a specific client (tenant). All greenhouse configuration and management happens within the context of a client's account.
+</Note>
+
+## Accessing Greenhouse Management
+
+There are two ways to access greenhouse management:
+
+1. **From Client Detail Screen**: Navigate to a client and select the **"Greenhouses"** tab
+2. **Direct Navigation**: The greenhouses feature is integrated into the client management workflow
+
+## Greenhouse Properties
+
+Each greenhouse has the following configurable properties:
+
+<CardGroup cols={2}>
+  <Card title="Basic Information" icon="warehouse">
+    - **Name**: Descriptive name for the facility
+    - **Code**: System-generated unique identifier
+    - **Client**: Owner organization (tenant)
+  </Card>
+  
+  <Card title="Physical Details" icon="map-location">
+    - **Location**: GPS coordinates (latitude/longitude)
+    - **Area**: Size in square meters (m²)
+    - **Timezone**: Local timezone for scheduling
+  </Card>
+  
+  <Card title="Operational Status" icon="toggle-on">
+    - **Active**: Greenhouse is operational
+    - **Inactive**: Greenhouse is offline or decommissioned
+  </Card>
+  
+  <Card title="Metadata" icon="clock">
+    - **Created At**: When the greenhouse was added
+    - **Updated At**: Last modification timestamp
+  </Card>
+</CardGroup>
+
+## Creating a New Greenhouse
+
+To add a greenhouse to a client's account:
+
+<Steps>
+  <Step title="Navigate to Client">
+    Open the client detail screen for the organization that owns the greenhouse
+  </Step>
+  
+  <Step title="Open Greenhouses Tab">
+    Click on the **"Greenhouses"** tab to view existing greenhouses
+  </Step>
+  
+  <Step title="Create New Greenhouse">
+    Click the **"Add Greenhouse"** or **"+"** button to open the creation dialog
+  </Step>
+  
+  <Step title="Enter Greenhouse Details">
+    Fill in the greenhouse information:
+    
+    - **Name** (required): A descriptive name like "North Greenhouse" or "Tomato House A"
+    - **Location** (optional): Enter latitude and longitude coordinates
+    - **Area** (optional): Size in square meters (e.g., 500.0)
+    - **Timezone** (optional): Select timezone (defaults to "Europe/Madrid")
+    - **Status**: Choose Active or Inactive (defaults to Active)
+  </Step>
+  
+  <Step title="Submit">
+    Click **"Create"** to save the greenhouse. The system will:
+    - Generate a unique greenhouse code
+    - Associate it with the client
+    - Add it to the greenhouses list
+  </Step>
+</Steps>
+
+<Tip>
+  Add GPS coordinates to enable location-based features and geographic reporting in future updates.
+</Tip>
+
+## Viewing Greenhouse Details
+
+The greenhouses table displays key information for each facility:
+
+- **Code**: System-generated unique identifier
+- **Name**: Greenhouse name (or "Greenhouse" if unnamed)
+- **Location**: GPS coordinates or "-" if not set
+- **Area**: Size in m² or "-" if not specified
+- **Timezone**: Configured timezone
+- **Status**: Active/Inactive indicator with color coding
+- **Actions**: Quick edit and delete buttons
+
+### Status Indicators
+
+<Accordion title="Active Status (Green)">
+  The greenhouse is operational and can be used for:
+  - Creating sectors and zones
+  - Deploying monitoring devices
+  - Collecting sensor data
+  - Managing environmental controls
+</Accordion>
+
+<Accordion title="Inactive Status (Red)">
+  The greenhouse is disabled. This might be used for:
+  - Seasonal facilities that aren't currently in use
+  - Greenhouses under maintenance or renovation
+  - Decommissioned structures that need to be archived
+</Accordion>
+
+## Editing Greenhouse Configuration
+
+To update an existing greenhouse:
+
+<Steps>
+  <Step title="Locate the Greenhouse">
+    Find the greenhouse in the client's Greenhouses tab
+  </Step>
+  
+  <Step title="Open Edit Dialog">
+    Click the **edit icon** (pencil) in the greenhouse's action column
+  </Step>
+  
+  <Step title="Modify Information">
+    Update any of the following:
+    - Greenhouse name
+    - GPS location coordinates
+    - Area in square meters
+    - Timezone setting
+    - Active/Inactive status
+  </Step>
+  
+  <Step title="Save Changes">
+    Click **"Update"** to save your modifications
+  </Step>
+</Steps>
+
+<Note>
+  The greenhouse code and client association cannot be changed after creation.
+</Note>
+
+## Managing Greenhouse Status
+
+### Activating a Greenhouse
+
+Set a greenhouse to **Active** when:
+- The facility is operational and ready for monitoring
+- You want to enable sensor data collection
+- The greenhouse is in current production use
+
+### Deactivating a Greenhouse
+
+Set a greenhouse to **Inactive** when:
+- The facility is temporarily out of service
+- You want to preserve historical data without active monitoring
+- The greenhouse is being renovated or maintained
+
+<Warning>
+  Deactivating a greenhouse may affect associated monitoring and alerts. Inactive greenhouses typically won't trigger notifications or collect new sensor readings.
+</Warning>
+
+## Sectors and Zones
+
+Each greenhouse can be divided into multiple **sectors** (also called zones or areas). Sectors help organize:
+
+- Different crop types or growing areas
+- Climate zones with different environmental requirements
+- Physical sections of large greenhouse facilities
+
+To manage sectors within a greenhouse, navigate to the **"Sectors"** tab in the client detail screen. Sectors reference their parent greenhouse and can have devices assigned to them.
+
+## Location and Timezone Configuration
+
+### GPS Coordinates
+
+Adding precise location data enables:
+- **Geographic Reporting**: Map views of all greenhouse facilities
+- **Weather Integration**: Local weather data for environmental correlation
+- **Multi-Site Management**: Clear visualization of distributed operations
+
+**Format**: Enter latitude and longitude as decimal degrees (e.g., 40.4168, -3.7038 for Madrid)
+
+### Timezone Settings
+
+Proper timezone configuration ensures:
+- **Accurate Scheduling**: Irrigation, lighting, and climate control schedules run at the correct local time
+- **Data Timestamps**: Sensor readings are recorded with the correct time
+- **Alert Timing**: Notifications respect local business hours
+
+**Default**: The system defaults to "Europe/Madrid" but can be customized per greenhouse
+
+## Area Measurement
+
+Specifying the greenhouse area in square meters helps with:
+
+- **Resource Allocation**: Calculate device coverage and density
+- **Capacity Planning**: Estimate production potential
+- **Efficiency Metrics**: Compute yield per square meter
+- **Cost Analysis**: Determine operational costs per unit area
+
+<Tip>
+  Enter area as a decimal number for precision (e.g., 500.5 for 500.5 m²)
+</Tip>
+
+## Deleting Greenhouses
+
+To remove a greenhouse from the system:
+
+<Warning>
+  Deleting a greenhouse will also remove all associated sectors, devices, and historical sensor data. This action cannot be undone.
+</Warning>
+
+<Steps>
+  <Step title="Initiate Deletion">
+    Click the **delete icon** (trash can) in the greenhouse's action column
+  </Step>
+  
+  <Step title="Confirm Deletion">
+    Review the confirmation dialog. Verify you're deleting the correct greenhouse.
+  </Step>
+  
+  <Step title="Complete Deletion">
+    Click **"Confirm Delete"** to permanently remove the greenhouse and all related data
+  </Step>
+</Steps>
+
+<Tip>
+  Consider setting the greenhouse to **Inactive** instead of deleting if you want to preserve historical data.
+</Tip>
+
+## Common Workflows
+
+### Setting Up a New Facility
+
+1. Navigate to the client account
+2. Create greenhouse with basic information
+3. Add GPS coordinates and area details
+4. Set appropriate timezone
+5. Create sectors within the greenhouse (see Sectors tab)
+6. Deploy devices to each sector
+7. Verify status is Active
+
+### Seasonal Operations
+
+**At Season Start:**
+1. Activate the greenhouse
+2. Verify all sectors are configured
+3. Check device assignments
+4. Enable monitoring and alerts
+
+**At Season End:**
+1. Export any necessary reports
+2. Set greenhouse to Inactive
+3. Preserve configuration for next season
+
+### Multi-Facility Management
+
+- Use clear naming conventions (e.g., "Site A - North", "Site B - South")
+- Add GPS coordinates to all facilities
+- Set correct timezones for each location
+- Use area measurements for comparative analysis
+
+## Best Practices
+
+1. **Descriptive Names**: Use names that clearly identify the facility and its purpose
+2. **Complete Data**: Fill in all optional fields (location, area, timezone) for better functionality
+3. **Accurate Locations**: Use precise GPS coordinates for mapping and reporting features
+4. **Status Management**: Keep status current - activate when in use, deactivate when not
+5. **Regular Updates**: Review and update greenhouse information as facilities change
+6. **Timezone Accuracy**: Ensure timezone matches the physical location for correct scheduling
+
+## Integration with Other Features
+
+Greenhouse management integrates with:
+
+- **Sectors**: Organize greenhouses into zones and areas
+- **Devices**: Deploy sensors and actuators within greenhouses
+- **Settings**: Configure greenhouse-specific environmental parameters
+- **Alerts**: Monitor greenhouse conditions and receive notifications
+- **Dashboard**: View greenhouse statistics and status at a glance

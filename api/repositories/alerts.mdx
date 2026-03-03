@@ -1,0 +1,291 @@
+---
+title: AlertsRepository
+description: Repository interface for alert data operations and catalog
+---
+
+## Overview
+
+The `AlertsRepository` provides CRUD operations for managing alerts, as well as catalog methods for alert types and severities. It also includes action methods for resolving and reopening alerts. All methods are suspend functions that return `Result<T>` for consistent error handling.
+
+## Catalog Methods
+
+### getAlertTypes()
+
+Fetches all alert types from the catalog.
+
+```kotlin
+suspend fun getAlertTypes(): Result<List<AlertType>>
+```
+
+**Returns**
+
+<ResponseField name="Result<List<AlertType>>" type="Result">
+  Result containing a list of AlertType objects or an error
+</ResponseField>
+
+---
+
+### getAlertSeverities()
+
+Fetches all alert severities from the catalog.
+
+```kotlin
+suspend fun getAlertSeverities(): Result<List<AlertSeverityCatalog>>
+```
+
+**Returns**
+
+<ResponseField name="Result<List<AlertSeverityCatalog>>" type="Result">
+  Result containing a list of AlertSeverityCatalog objects or an error
+</ResponseField>
+
+## CRUD Methods
+
+### getAlertsByTenantId()
+
+Fetches all alerts for a specific tenant.
+
+```kotlin
+suspend fun getAlertsByTenantId(tenantId: Long): Result<List<Alert>>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID to filter alerts by
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<List<Alert>>" type="Result">
+  Result containing a list of Alert objects or an error
+</ResponseField>
+
+---
+
+### createAlert()
+
+Creates a new alert for a tenant.
+
+```kotlin
+suspend fun createAlert(tenantId: Long, request: AlertCreateRequest): Result<Alert>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID
+</ParamField>
+
+<ParamField path="request" type="AlertCreateRequest" required>
+  The alert data to create
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Alert>" type="Result">
+  Result containing the created Alert object or an error
+</ResponseField>
+
+---
+
+### updateAlert()
+
+Updates an existing alert.
+
+```kotlin
+suspend fun updateAlert(tenantId: Long, alertId: Long, request: AlertUpdateRequest): Result<Alert>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID
+</ParamField>
+
+<ParamField path="alertId" type="Long" required>
+  The alert ID to update
+</ParamField>
+
+<ParamField path="request" type="AlertUpdateRequest" required>
+  The alert data to update
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Alert>" type="Result">
+  Result containing the updated Alert object or an error
+</ResponseField>
+
+---
+
+### deleteAlert()
+
+Deletes an alert by ID.
+
+```kotlin
+suspend fun deleteAlert(tenantId: Long, alertId: Long): Result<Unit>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID
+</ParamField>
+
+<ParamField path="alertId" type="Long" required>
+  The alert ID to delete
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Unit>" type="Result">
+  Result indicating success or error
+</ResponseField>
+
+## Action Methods
+
+### resolveAlert()
+
+Resolves an alert.
+
+```kotlin
+suspend fun resolveAlert(tenantId: Long, alertId: Long, resolvedByUserId: Long? = null): Result<Alert>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID
+</ParamField>
+
+<ParamField path="alertId" type="Long" required>
+  The alert ID to resolve
+</ParamField>
+
+<ParamField path="resolvedByUserId" type="Long" default="null">
+  Optional user ID who resolved the alert
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Alert>" type="Result">
+  Result containing the resolved Alert object or an error
+</ResponseField>
+
+---
+
+### reopenAlert()
+
+Reopens a resolved alert.
+
+```kotlin
+suspend fun reopenAlert(tenantId: Long, alertId: Long): Result<Alert>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID
+</ParamField>
+
+<ParamField path="alertId" type="Long" required>
+  The alert ID to reopen
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Alert>" type="Result">
+  Result containing the reopened Alert object or an error
+</ResponseField>
+
+## Usage Example
+
+```kotlin
+class AlertsViewModel(
+    private val alertsRepository: AlertsRepository
+) : ViewModel() {
+    
+    private val _alerts = MutableStateFlow<List<Alert>>(emptyList())
+    val alerts: StateFlow<List<Alert>> = _alerts.asStateFlow()
+    
+    private val _alertTypes = MutableStateFlow<List<AlertType>>(emptyList())
+    val alertTypes: StateFlow<List<AlertType>> = _alertTypes.asStateFlow()
+    
+    private val _severities = MutableStateFlow<List<AlertSeverityCatalog>>(emptyList())
+    val severities: StateFlow<List<AlertSeverityCatalog>> = _severities.asStateFlow()
+    
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+    
+    fun loadAlerts(tenantId: Long) {
+        viewModelScope.launch {
+            alertsRepository.getAlertsByTenantId(tenantId)
+                .onSuccess { _alerts.value = it }
+                .onFailure { _error.value = it.message }
+        }
+    }
+    
+    fun loadCatalogData() {
+        viewModelScope.launch {
+            // Load alert types and severities in parallel
+            launch {
+                alertsRepository.getAlertTypes()
+                    .onSuccess { _alertTypes.value = it }
+                    .onFailure { _error.value = it.message }
+            }
+            launch {
+                alertsRepository.getAlertSeverities()
+                    .onSuccess { _severities.value = it }
+                    .onFailure { _error.value = it.message }
+            }
+        }
+    }
+    
+    fun createAlert(tenantId: Long, request: AlertCreateRequest) {
+        viewModelScope.launch {
+            alertsRepository.createAlert(tenantId, request)
+                .onSuccess { loadAlerts(tenantId) }
+                .onFailure { _error.value = it.message }
+        }
+    }
+    
+    fun resolveAlert(tenantId: Long, alertId: Long, userId: Long?) {
+        viewModelScope.launch {
+            alertsRepository.resolveAlert(tenantId, alertId, userId)
+                .onSuccess { loadAlerts(tenantId) }
+                .onFailure { _error.value = it.message }
+        }
+    }
+    
+    fun reopenAlert(tenantId: Long, alertId: Long) {
+        viewModelScope.launch {
+            alertsRepository.reopenAlert(tenantId, alertId)
+                .onSuccess { loadAlerts(tenantId) }
+                .onFailure { _error.value = it.message }
+        }
+    }
+}
+```
+
+## Dependency Injection
+
+Inject the repository using Koin in your Composables:
+
+```kotlin
+import org.koin.compose.viewmodel.koinViewModel
+
+@Composable
+fun AlertsScreen(tenantId: Long) {
+    val viewModel: AlertsViewModel = koinViewModel()
+    val alerts by viewModel.alerts.collectAsState()
+    val alertTypes by viewModel.alertTypes.collectAsState()
+    
+    LaunchedEffect(Unit) {
+        viewModel.loadCatalogData()
+        viewModel.loadAlerts(tenantId)
+    }
+    
+    // UI implementation
+}
+```

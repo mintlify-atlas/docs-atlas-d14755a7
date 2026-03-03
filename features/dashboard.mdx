@@ -1,0 +1,397 @@
+---
+title: Dashboard
+description: Monitor key metrics and get an overview of your greenhouse administration system
+---
+
+## Overview
+
+The Dashboard is your central command center for monitoring the entire greenhouse administration system. It provides at-a-glance statistics, recent activity, and quick access to critical information across all clients, greenhouses, devices, and alerts.
+
+<Note>
+  The Dashboard aggregates data from all clients in the system, giving administrators a bird's-eye view of the entire platform's status and performance.
+</Note>
+
+## Accessing the Dashboard
+
+The Dashboard is typically the first screen you see after logging in:
+
+1. **Default Landing Page**: Dashboard loads automatically after successful login
+2. **Navigation Menu**: Click **"Dashboard"** in the sidebar to return at any time
+3. **Quick Access**: Dashboard icon is prominently displayed in the main navigation
+
+## Dashboard Components
+
+The Dashboard consists of several key sections:
+
+<CardGroup cols={2}>
+  <Card title="Statistics Cards" icon="chart-line">
+    High-level metrics showing totals and active counts for clients, greenhouses, devices, and alerts
+  </Card>
+  
+  <Card title="Recent Alerts" icon="bell">
+    Latest system alerts and notifications requiring attention
+  </Card>
+  
+  <Card title="Recent Clients" icon="users">
+    Newly added or recently modified client accounts
+  </Card>
+  
+  <Card title="Device Breakdown" icon="chart-pie">
+    Distribution of sensors vs. actuators across the system
+  </Card>
+</CardGroup>
+
+## Statistics Overview
+
+The top of the Dashboard displays four primary statistics cards:
+
+### Total Clients
+
+<Accordion title="Client Statistics">
+  **What it shows:**
+  - Total number of client organizations in the system
+  - Number of active clients
+  - Subtitle displays: "X activos" (X active)
+  
+  **Use this metric to:**
+  - Track total customer base
+  - Monitor active vs. inactive accounts
+  - Assess business growth over time
+  
+  **Visual indicator:**
+  - Green subtitle indicates healthy active client count
+  - Click to navigate to full Clients list
+</Accordion>
+
+### Total Greenhouses
+
+<Accordion title="Greenhouse Statistics">
+  **What it shows:**
+  - Total number of greenhouse facilities across all clients
+  - Percentage of active greenhouses
+  - Subtitle displays: "X% Active"
+  
+  **Use this metric to:**
+  - Track total facility count
+  - Monitor seasonal operation levels
+  - Identify utilization rates
+  
+  **Visual indicator:**
+  - Percentage shows operational efficiency
+  - Higher percentage indicates more facilities in active use
+</Accordion>
+
+### Active Devices
+
+<Accordion title="Device Statistics">
+  **What it shows:**
+  - Total number of active devices (sensors + actuators)
+  - Breakdown: "X sensors, Y actuators"
+  - Only counts devices with Active status
+  
+  **Use this metric to:**
+  - Track total hardware deployment
+  - Monitor sensor vs. actuator balance
+  - Plan for device maintenance or expansion
+  
+  **Visual indicator:**
+  - Shows hardware scale across all clients
+  - Breakdown helps assess monitoring coverage
+</Accordion>
+
+### Active Alerts
+
+<Accordion title="Alert Statistics">
+  **What it shows:**
+  - Number of currently active (unresolved) alerts
+  - Critical alert count
+  - Subtitle displays: "X critical" or "No critical alerts"
+  
+  **Use this metric to:**
+  - Quickly assess system health
+  - Identify urgent issues requiring attention
+  - Monitor alert resolution efficiency
+  
+  **Visual indicators:**
+  - **Orange/Warning color**: When critical alerts exist
+  - **Green/Success color**: When no critical alerts present
+  - Higher numbers indicate issues needing attention
+</Accordion>
+
+## Metric Interpretation
+
+### Understanding the Numbers
+
+<Steps>
+  <Step title="Total vs. Active">
+    Many metrics show both total and active counts:
+    - **Total**: All entities in the database (active + inactive)
+    - **Active**: Only operational entities (status = Active)
+    
+    Compare these to understand utilization rates.
+  </Step>
+  
+  <Step title="Percentages and Ratios">
+    The dashboard calculates meaningful percentages:
+    - **Active Greenhouses %**: Active / Total greenhouses
+    - **Device Distribution**: Sensors / Actuators ratio
+    - **Alert Severity**: Critical / Total alerts
+  </Step>
+  
+  <Step title="Color Indicators">
+    Card subtitle colors convey status:
+    - **Green**: Positive metrics, healthy status
+    - **Orange/Yellow**: Warnings, items needing attention
+    - Color helps prioritize which areas need focus
+  </Step>
+</Steps>
+
+## Recent Alerts Section
+
+The Recent Alerts panel displays the most recent system alerts across all clients:
+
+### Alert Information Displayed
+
+| Field | Description |
+|-------|-------------|
+| **Alert Code** | Unique identifier for the alert |
+| **Client** | Which organization the alert belongs to |
+| **Sector** | The greenhouse zone where the alert originated |
+| **Message/Description** | Details about the alert condition |
+| **Severity** | Critical, High, Medium, Low indicator |
+| **Timestamp** | When the alert was created |
+
+### Severity Levels
+
+<CardGroup cols={4}>
+  <Card title="Critical" icon="exclamation-triangle">
+    Urgent issues requiring immediate attention - equipment failure, dangerous conditions
+  </Card>
+  
+  <Card title="High" icon="exclamation">
+    Important issues needing prompt response - threshold violations, system errors
+  </Card>
+  
+  <Card title="Medium" icon="info-circle">
+    Standard notifications - parameter deviations, routine events
+  </Card>
+  
+  <Card title="Low" icon="bell">
+    Informational alerts - status changes, completed actions
+  </Card>
+</CardGroup>
+
+### Using Recent Alerts
+
+1. **Quick Scan**: Review for any critical or high severity items
+2. **Click to Details**: Click an alert to navigate to the full client detail screen
+3. **Prioritize**: Address critical alerts before lower severity items
+4. **Monitor Trends**: Watch for recurring alerts from same client/sector
+
+<Tip>
+  The Recent Alerts section is designed for quick triage. Click through to the Alerts tab in client details for full alert management capabilities.
+</Tip>
+
+## Recent Clients Section
+
+The Recent Clients panel shows recently added or modified client accounts:
+
+### Client Information Displayed
+
+| Field | Description |
+|-------|-------------|
+| **Client Code** | Unique system identifier |
+| **Name** | Organization name |
+| **Province** | Geographic location |
+| **Status** | Active/Inactive indicator |
+
+### Use Cases
+
+- **New Onboarding**: Quickly access newly added clients for setup
+- **Recent Changes**: See which clients were recently modified
+- **Quick Navigation**: Click to jump directly to client detail screen
+- **Activity Monitor**: Track recent system activity
+
+## Device Breakdown
+
+The Device Breakdown shows the distribution of device types:
+
+### Metrics Displayed
+
+- **Sensors**: Total count of monitoring devices
+- **Actuators**: Total count of control devices
+- **Total Devices**: Combined sum
+
+### Interpretation
+
+<Accordion title="Balanced Distribution">
+  An ideal greenhouse typically has:
+  - **More sensors** than actuators (monitoring is comprehensive)
+  - Ratio often ranges from 2:1 to 4:1 (sensors:actuators)
+  - Balance depends on automation level and crop type
+</Accordion>
+
+<Accordion title="Sensor-Heavy Systems">
+  High sensor count relative to actuators indicates:
+  - Comprehensive monitoring
+  - Manual control operations
+  - Data-focused approach
+</Accordion>
+
+<Accordion title="Actuator-Heavy Systems">
+  High actuator count relative to sensors indicates:
+  - High automation level
+  - Active control systems
+  - May need more sensors for better monitoring
+</Accordion>
+
+## Dashboard Workflow
+
+Here's how to effectively use the Dashboard in your daily workflow:
+
+<Steps>
+  <Step title="Morning Check">
+    **Start your day with a quick scan:**
+    1. Review statistics cards for any unusual numbers
+    2. Check Recent Alerts for overnight issues
+    3. Note any critical alerts requiring immediate action
+    4. Scan recent clients for new onboarding tasks
+  </Step>
+  
+  <Step title="Identify Priorities">
+    **Determine what needs attention:**
+    - Critical alerts → Highest priority
+    - High alert counts → Investigate trend
+    - Low active percentages → Check inactive entities
+    - New clients → Plan onboarding activities
+  </Step>
+  
+  <Step title="Navigate to Details">
+    **Click through for deeper investigation:**
+    - Click statistic cards to view full lists
+    - Click alert rows to see client details
+    - Click client names to manage specific accounts
+    - Use sidebar navigation for focused work
+  </Step>
+  
+  <Step title="Regular Monitoring">
+    **Return to Dashboard periodically:**
+    - Refresh to see updated metrics
+    - Monitor alert resolution progress
+    - Track system activity throughout the day
+    - Check for new critical issues
+  </Step>
+</Steps>
+
+## Refreshing Dashboard Data
+
+The Dashboard loads current data when:
+
+1. **Initial Load**: Page first loads after login
+2. **Manual Refresh**: Use browser refresh or pull-to-refresh gesture
+3. **Navigation Return**: Return to Dashboard from other screens
+
+<Note>
+  Dashboard data is calculated in real-time from the database, ensuring you always see current statistics.
+</Note>
+
+## Performance Optimization
+
+The Dashboard is optimized for fast loading:
+
+- **Single Query**: Statistics are fetched in one efficient database call
+- **Cached Data**: Recent alerts and clients may use cached results
+- **Parallel Loading**: Different sections load simultaneously
+- **Responsive Display**: Updates smoothly on all screen sizes
+
+## Mobile and Responsive View
+
+The Dashboard adapts to different screen sizes:
+
+### Desktop View
+- Four statistics cards in a grid layout
+- Side-by-side panels for alerts and clients
+- Full table displays with all columns
+
+### Tablet View
+- Two cards per row for statistics
+- Stacked panels for alerts and clients
+- Responsive tables with horizontal scroll if needed
+
+### Mobile View
+- Single column layout for statistics
+- Card-based displays for alerts and clients
+- Touch-optimized navigation
+
+## Common Scenarios
+
+### Scenario 1: Critical Alert Detected
+
+1. **Notice**: Active Alerts card shows "5 critical"
+2. **Review**: Scroll to Recent Alerts section
+3. **Identify**: See which clients have critical alerts
+4. **Navigate**: Click critical alert to go to client detail
+5. **Resolve**: Address the alert in the client's Alerts tab
+6. **Confirm**: Return to Dashboard to verify count decreased
+
+### Scenario 2: New Client Onboarding
+
+1. **Notice**: Recent Clients shows newly added account
+2. **Navigate**: Click client name to open detail screen
+3. **Setup**: Configure greenhouses in Greenhouses tab
+4. **Add Users**: Create user accounts in Users tab
+5. **Deploy**: Add devices in Devices tab
+6. **Monitor**: Return to Dashboard to see updated statistics
+
+### Scenario 3: System Health Check
+
+1. **Clients**: Check total vs. active client ratio
+2. **Greenhouses**: Verify active percentage is reasonable
+3. **Devices**: Ensure sufficient devices are active
+4. **Alerts**: Look for unusual alert patterns
+5. **Trends**: Compare to previous days/weeks
+6. **Action**: Investigate any anomalies
+
+## Best Practices
+
+1. **Regular Monitoring**: Check Dashboard at the start of each shift or workday
+2. **Alert Priority**: Always address critical alerts first
+3. **Trend Watching**: Track statistics over time to identify patterns
+4. **Quick Navigation**: Use Dashboard as a jumping-off point to specific areas
+5. **Balance Check**: Monitor active vs. total ratios for all entities
+6. **Device Distribution**: Ensure sensor/actuator balance meets operational needs
+7. **Client Health**: Low active client count may indicate churn or seasonal factors
+
+## Troubleshooting
+
+### Numbers Don't Match Expected Values
+
+- **Check Filters**: Ensure no filters are applied in list views
+- **Status Review**: Verify Active vs. Inactive status of entities
+- **Refresh**: Reload the Dashboard to get latest data
+- **Database Sync**: Confirm recent changes have been saved
+
+### No Recent Alerts Showing
+
+- **Good Sign**: May indicate system is healthy
+- **Check Clients**: Navigate to client details to verify
+- **Alert Configuration**: Ensure alert rules are properly configured
+- **Historical View**: Check alert history in client detail screens
+
+### Statistics Cards Show Zero
+
+- **New System**: May be normal for newly installed systems
+- **Check Permissions**: Verify you have access to view data
+- **Database Connection**: Ensure system can connect to database
+- **Create Data**: Add clients, greenhouses, and devices to populate statistics
+
+## Integration with Other Features
+
+The Dashboard integrates data from:
+
+- **Client Management**: Total and active client counts
+- **Greenhouse Management**: Greenhouse counts and active percentages
+- **Device Management**: Device totals and sensor/actuator breakdown
+- **User Management**: User statistics (if displayed)
+- **Alerts**: Active alert counts and recent alert list
+- **Settings**: System-wide configuration affects what's displayed

@@ -1,0 +1,462 @@
+---
+title: Authentication
+description: How Greenhouse Admin handles login, token storage, and session management across all platforms
+---
+
+Greenhouse Admin implements a secure authentication system using JWT tokens with role-based access control. The authentication flow works identically across all platforms thanks to the multiplatform architecture.
+
+## Authentication flow
+
+The login process follows these steps:
+
+<Steps>
+  <Step title="User submits credentials">
+    The `LoginViewModel` receives username and password from the UI:
+    
+    ```kotlin LoginViewModel.kt
+    private fun performLogin() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            
+            authRepository.login(
+                username = currentState.username.trim(),
+                password = currentState.password
+            )
+                .onSuccess { /* Navigate to dashboard */ }
+                .onFailure { error -> /* Show error */ }
+        }
+    }
+    ```
+  </Step>
+  
+  <Step title="Repository calls API service">
+    The `AuthRepository` sends credentials to the backend:
+    
+    ```kotlin AuthRepositoryImpl.kt
+    override suspend fun login(username: String, password: String): Result<UserSession> {
+        return runCatching {
+            // Call authentication endpoint
+            val response = authApiService.login(username, password)
+            
+            // Store tokens locally
+            tokenStorage.saveAccessToken(response.token)
+            tokenStorage.saveTokenType(response.type)
+            tokenStorage.saveUsername(response.username)
+            tokenStorage.saveRoles(response.roles)
+            
+            // Return user session
+            response.toUserSession()
+        }
+    }
+    ```
+  </Step>
+  
+  <Step title="API returns JWT token">
+    The backend responds with a JWT token and user information:
+    
+    ```kotlin AuthModels.kt
+    @Serializable
+    data class JwtResponse(
+        val token: String,
+        val type: String = "Bearer",
+        val username: String,
+        val roles: List<String> = emptyList()
+    )
+    ```
+  </Step>
+  
+  <Step title="Token stored securely">
+    Platform-specific storage saves the token:
+    
+    - **Android**: In-memory (production should use EncryptedSharedPreferences)
+    - **iOS**: NSUserDefaults (production should use Keychain)
+    - **Web**: localStorage
+    - **Desktop**: Java Preferences API
+  </Step>
+  
+  <Step title="Session created">
+    A `UserSession` object represents the authenticated state:
+    
+    ```kotlin AuthModels.kt
+    data class UserSession(
+        val token: String,
+        val tokenType: String,
+        val username: String,
+        val roles: List<String>
+    ) {
+        val isAdmin: Boolean
+            get() = roles.any { it.equals("ROLE_ADMIN", ignoreCase = true) }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Token storage
+
+Token storage is implemented using the expect/actual pattern to use native APIs on each platform:
+
+### Common interface
+
+```kotlin commonMain/data/local/TokenStorage.kt
+expect class TokenStorage() {
+    fun getAccessToken(): String?
+    fun saveAccessToken(token: String)
+    fun getTokenType(): String?
+    fun saveTokenType(type: String)
+    fun getUsername(): String?
+    fun saveUsername(username: String)
+    fun getRoles(): List<String>
+    fun saveRoles(roles: List<String>)
+    fun clearTokens()
+    fun isAuthenticated(): Boolean
+}
+```
+
+### Platform implementations
+
+<Tabs>
+  <Tab title="Web (WasmJS)">
+    Uses browser localStorage for token persistence:
+    
+    ```kotlin wasmJsMain/data/local/TokenStorage.wasmJs.kt
+    import kotlinx.browser.localStorage
+    
+    actual class TokenStorage actual constructor() {
+        actual fun getAccessToken(): String? = 
+            localStorage.getItem(KEY_ACCESS_TOKEN)
+            
+        actual fun saveAccessToken(token: String) {
+            localStorage.setItem(KEY_ACCESS_TOKEN, token)
+        }
+        
+        actual fun getRoles(): List<String> {
+            val rolesString = localStorage.getItem(KEY_ROLES) 
+                ?: return emptyList()
+            return rolesString.split(",").filter { it.isNotBlank() }
+        }
+        
+        actual fun saveRoles(roles: List<String>) {
+            localStorage.setItem(KEY_ROLES, roles.joinToString(","))
+        }
+        
+        actual fun clearTokens() {
+            localStorage.removeItem(KEY_ACCESS_TOKEN)
+            localStorage.removeItem(KEY_TOKEN_TYPE)
+            localStorage.removeItem(KEY_USERNAME)
+            localStorage.removeItem(KEY_ROLES)
+        }
+        
+        companion object {
+            private const val KEY_ACCESS_TOKEN = "greenhouse_access_token"
+            private const val KEY_TOKEN_TYPE = "greenhouse_token_type"
+            private const val KEY_USERNAME = "greenhouse_username"
+            private const val KEY_ROLES = "greenhouse_roles"
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="iOS">
+    Uses NSUserDefaults (production should use Keychain):
+    
+    ```kotlin iosMain/data/local/TokenStorage.ios.kt
+    import platform.Foundation.NSUserDefaults
+    
+    actual class TokenStorage actual constructor() {
+        private val defaults = NSUserDefaults.standardUserDefaults
+        
+        actual fun getAccessToken(): String? = 
+            defaults.stringForKey(KEY_ACCESS_TOKEN)
+            
+        actual fun saveAccessToken(token: String) {
+            defaults.setObject(token, KEY_ACCESS_TOKEN)
+        }
+        
+        actual fun getRoles(): List<String> {
+            val rolesArray = defaults.arrayForKey(KEY_ROLES) 
+                ?: return emptyList()
+            return rolesArray.mapNotNull { it as? String }
+        }
+        
+        actual fun saveRoles(roles: List<String>) {
+            defaults.setObject(roles, KEY_ROLES)
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Android">
+    Uses in-memory storage (production should use EncryptedSharedPreferences):
+    
+    ```kotlin androidMain/data/local/TokenStorage.android.kt
+    actual class TokenStorage actual constructor() {
+        private var accessToken: String? = null
+        private var tokenType: String? = null
+        private var username: String? = null
+        private var roles: List<String> = emptyList()
+        
+        actual fun getAccessToken(): String? = accessToken
+        actual fun saveAccessToken(token: String) {
+            accessToken = token
+        }
+        
+        actual fun getRoles(): List<String> = roles
+        actual fun saveRoles(roles: List<String>) {
+            this.roles = roles
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+Current implementations are for development. Production apps should use:
+- **Android**: EncryptedSharedPreferences
+- **iOS**: Keychain Services
+- **Web**: Consider secure cookie storage or encrypted localStorage
+</Warning>
+
+## Role-based access control
+
+Greenhouse Admin supports three user roles:
+
+<Tabs>
+  <Tab title="ADMIN">
+    **Full system access** including:
+    - Manage clients (create, edit, delete)
+    - Manage users and their roles
+    - Configure greenhouses, sectors, and devices
+    - View all data and analytics
+    - System settings and configuration
+  </Tab>
+  
+  <Tab title="OPERATOR">
+    **Operational access** including:
+    - View and edit greenhouse data
+    - Manage devices and sensors
+    - View alerts and notifications
+    - Limited user management
+  </Tab>
+  
+  <Tab title="VIEWER">
+    **Read-only access** including:
+    - View greenhouse data
+    - View device status
+    - View alerts (cannot modify)
+    - No administrative functions
+  </Tab>
+</Tabs>
+
+Roles are stored as strings in the JWT token and persisted with the session:
+
+```kotlin AuthModels.kt
+data class UserSession(
+    val token: String,
+    val tokenType: String,
+    val username: String,
+    val roles: List<String>  // e.g., ["ROLE_ADMIN", "ROLE_OPERATOR"]
+) {
+    val isAdmin: Boolean
+        get() = roles.any { it.equals("ROLE_ADMIN", ignoreCase = true) }
+}
+```
+
+```kotlin UserModels.kt
+enum class UserRole {
+    ADMIN,
+    OPERATOR,
+    VIEWER;
+    
+    val displayName: String
+        get() = name.lowercase().replaceFirstChar { it.uppercase() }
+    
+    companion object {
+        fun fromString(value: String): UserRole {
+            return entries.find { it.name.equals(value, ignoreCase = true) } ?: VIEWER
+        }
+    }
+}
+```
+
+## Session validation
+
+The app validates the session on startup and before critical operations:
+
+```kotlin AuthRepository.kt
+interface AuthRepository {
+    /**
+     * Validates the current session with the backend.
+     * Makes a lightweight API call to verify the token is still valid.
+     */
+    suspend fun validateSession(): Boolean
+}
+```
+
+```kotlin AuthRepositoryImpl.kt
+override suspend fun validateSession(): Boolean {
+    // If no token exists, session is invalid
+    if (!tokenStorage.isAuthenticated()) return false
+    
+    return try {
+        // Make a lightweight API call to validate the token
+        authApiService.validateToken()
+        true
+    } catch (e: AuthenticationException) {
+        // Token is expired or invalid - clear it
+        tokenStorage.clearTokens()
+        false
+    } catch (e: Exception) {
+        // Network error - assume valid to avoid logout on network problems
+        true
+    }
+}
+```
+
+The `LoginViewModel` validates the session on initialization:
+
+```kotlin LoginViewModel.kt
+init {
+    validateSession()
+}
+
+private fun validateSession() {
+    viewModelScope.launch {
+        if (!authRepository.isAuthenticated()) {
+            return@launch  // No session to validate
+        }
+        
+        _uiState.update { it.copy(isValidatingSession = true) }
+        
+        val isValid = authRepository.validateSession()
+        
+        _uiState.update {
+            it.copy(
+                isValidatingSession = false,
+                isLoginSuccessful = isValid
+            )
+        }
+    }
+}
+```
+
+## Token injection
+
+The Ktor HTTP client automatically injects the authentication token into all requests:
+
+```kotlin KtorClient.kt
+fun createHttpClient(
+    tokenStorage: TokenStorage,
+    authEventManager: AuthEventManager
+): HttpClient = HttpClient {
+    install(Auth) {
+        bearer {
+            loadTokens {
+                val token = tokenStorage.getAccessToken()
+                val type = tokenStorage.getTokenType() ?: "Bearer"
+                token?.let { BearerTokens(it, it) }
+            }
+        }
+    }
+    
+    // Handle 401 Unauthorized responses
+    install(HttpResponseValidator) {
+        handleResponseException { exception ->
+            if (exception is ClientRequestException && 
+                exception.response.status == HttpStatusCode.Unauthorized) {
+                // Emit authentication event
+                authEventManager.emitAuthenticationFailed()
+                throw AuthenticationException("Session expired")
+            }
+        }
+    }
+}
+```
+
+## Logout flow
+
+Logging out involves both server-side and client-side cleanup:
+
+```kotlin AuthRepositoryImpl.kt
+override suspend fun logout(): Result<Unit> {
+    return runCatching {
+        // Call server logout endpoint (best effort)
+        try {
+            authApiService.logout()
+        } catch (_: Exception) {
+            // Ignore server errors, we'll clear local tokens anyway
+        }
+        
+        // Always clear local tokens
+        tokenStorage.clearTokens()
+    }
+}
+
+// For immediate local logout without server call
+override fun clearLocalSession() {
+    tokenStorage.clearTokens()
+}
+```
+
+## Authentication state
+
+The authentication state is managed in the `LoginViewModel` using MVI pattern:
+
+```kotlin LoginViewModel.kt
+data class LoginUiState(
+    val username: String = "",
+    val password: String = "",
+    val isPasswordVisible: Boolean = false,
+    val isLoading: Boolean = false,
+    val isValidatingSession: Boolean = false,
+    val error: String? = null,
+    val isLoginSuccessful: Boolean = false
+) {
+    val isLoginEnabled: Boolean
+        get() = username.isNotBlank() && password.isNotBlank() && !isLoading
+}
+
+sealed interface LoginEvent {
+    data class OnUsernameChanged(val username: String) : LoginEvent
+    data class OnPasswordChanged(val password: String) : LoginEvent
+    data object OnLoginClicked : LoginEvent
+    data object OnTogglePasswordVisibility : LoginEvent
+    data object DismissError : LoginEvent
+    data object OnNavigationHandled : LoginEvent
+}
+```
+
+## Security best practices
+
+<CardGroup cols={2}>
+  <Card title="Token expiration" icon="clock">
+    Validate tokens on app startup and critical operations to detect expired sessions
+  </Card>
+  
+  <Card title="Secure storage" icon="lock">
+    Use platform-specific secure storage in production (Keychain, EncryptedSharedPreferences)
+  </Card>
+  
+  <Card title="HTTPS only" icon="shield">
+    Always use HTTPS for API communication to prevent token interception
+  </Card>
+  
+  <Card title="Token refresh" icon="rotate">
+    Implement token refresh logic for long-lived sessions (future enhancement)
+  </Card>
+</CardGroup>
+
+<Warning>
+Never log or expose JWT tokens in production. They contain sensitive user information and grant access to the system.
+</Warning>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Architecture" href="/concepts/architecture">
+    Learn about the repository pattern and dependency injection
+  </Card>
+  
+  <Card title="Multiplatform" href="/concepts/multiplatform">
+    Understand expect/actual pattern used for token storage
+  </Card>
+</CardGroup>

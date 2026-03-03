@@ -1,0 +1,240 @@
+---
+title: GreenhousesRepository
+description: Repository interface for greenhouse data operations
+---
+
+## Overview
+
+The `GreenhousesRepository` provides CRUD operations for managing greenhouses within a tenant. Greenhouses can have locations, area measurements, timezones, and active status. All methods are suspend functions that return `Result<T>` for consistent error handling.
+
+## Methods
+
+### getGreenhousesByTenantId()
+
+Fetches all greenhouses for a specific tenant.
+
+```kotlin
+suspend fun getGreenhousesByTenantId(tenantId: Long): Result<List<Greenhouse>>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID to filter greenhouses by
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<List<Greenhouse>>" type="Result">
+  Result containing a list of Greenhouse objects or an error
+</ResponseField>
+
+---
+
+### createGreenhouse()
+
+Creates a new greenhouse for a tenant.
+
+```kotlin
+suspend fun createGreenhouse(
+    tenantId: Long,
+    name: String,
+    location: Location? = null,
+    areaM2: Double? = null,
+    timezone: String? = "Europe/Madrid",
+    isActive: Boolean = true
+): Result<Greenhouse>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID the greenhouse belongs to
+</ParamField>
+
+<ParamField path="name" type="String" required>
+  The greenhouse name
+</ParamField>
+
+<ParamField path="location" type="Location" default="null">
+  Optional geographic location of the greenhouse
+</ParamField>
+
+<ParamField path="areaM2" type="Double" default="null">
+  Optional area in square meters
+</ParamField>
+
+<ParamField path="timezone" type="String" default="Europe/Madrid">
+  Optional timezone (defaults to Europe/Madrid)
+</ParamField>
+
+<ParamField path="isActive" type="Boolean" default="true">
+  Whether the greenhouse is active
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Greenhouse>" type="Result">
+  Result containing the created Greenhouse object or an error
+</ResponseField>
+
+---
+
+### updateGreenhouse()
+
+Updates an existing greenhouse. All update fields are optional for partial updates.
+
+```kotlin
+suspend fun updateGreenhouse(
+    tenantId: Long,
+    greenhouseId: Long,
+    name: String? = null,
+    location: Location? = null,
+    areaM2: Double? = null,
+    timezone: String? = null,
+    isActive: Boolean? = null
+): Result<Greenhouse>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID the greenhouse belongs to
+</ParamField>
+
+<ParamField path="greenhouseId" type="Long" required>
+  The greenhouse ID to update
+</ParamField>
+
+<ParamField path="name" type="String" default="null">
+  New name (optional)
+</ParamField>
+
+<ParamField path="location" type="Location" default="null">
+  New location (optional)
+</ParamField>
+
+<ParamField path="areaM2" type="Double" default="null">
+  New area (optional)
+</ParamField>
+
+<ParamField path="timezone" type="String" default="null">
+  New timezone (optional)
+</ParamField>
+
+<ParamField path="isActive" type="Boolean" default="null">
+  New active status (optional)
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Greenhouse>" type="Result">
+  Result containing the updated Greenhouse object or an error
+</ResponseField>
+
+---
+
+### deleteGreenhouse()
+
+Deletes a greenhouse by ID.
+
+```kotlin
+suspend fun deleteGreenhouse(tenantId: Long, greenhouseId: Long): Result<Unit>
+```
+
+**Parameters**
+
+<ParamField path="tenantId" type="Long" required>
+  The tenant ID the greenhouse belongs to
+</ParamField>
+
+<ParamField path="greenhouseId" type="Long" required>
+  The greenhouse ID to delete
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Unit>" type="Result">
+  Result indicating success or error
+</ResponseField>
+
+## Usage Example
+
+```kotlin
+class GreenhousesViewModel(
+    private val greenhousesRepository: GreenhousesRepository
+) : ViewModel() {
+    
+    private val _greenhouses = MutableStateFlow<List<Greenhouse>>(emptyList())
+    val greenhouses: StateFlow<List<Greenhouse>> = _greenhouses.asStateFlow()
+    
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+    
+    fun loadGreenhouses(tenantId: Long) {
+        viewModelScope.launch {
+            greenhousesRepository.getGreenhousesByTenantId(tenantId)
+                .onSuccess { _greenhouses.value = it }
+                .onFailure { _error.value = it.message }
+        }
+    }
+    
+    fun createGreenhouse(
+        tenantId: Long,
+        name: String,
+        location: Location?,
+        areaM2: Double?
+    ) {
+        viewModelScope.launch {
+            greenhousesRepository.createGreenhouse(
+                tenantId = tenantId,
+                name = name,
+                location = location,
+                areaM2 = areaM2,
+                timezone = "Europe/Madrid",
+                isActive = true
+            )
+                .onSuccess { loadGreenhouses(tenantId) }
+                .onFailure { _error.value = it.message }
+        }
+    }
+    
+    fun updateGreenhouse(
+        tenantId: Long,
+        greenhouseId: Long,
+        name: String? = null,
+        isActive: Boolean? = null
+    ) {
+        viewModelScope.launch {
+            greenhousesRepository.updateGreenhouse(
+                tenantId = tenantId,
+                greenhouseId = greenhouseId,
+                name = name,
+                isActive = isActive
+            )
+                .onSuccess { loadGreenhouses(tenantId) }
+                .onFailure { _error.value = it.message }
+        }
+    }
+}
+```
+
+## Dependency Injection
+
+Inject the repository using Koin in your Composables:
+
+```kotlin
+import org.koin.compose.viewmodel.koinViewModel
+
+@Composable
+fun GreenhousesScreen(tenantId: Long) {
+    val viewModel: GreenhousesViewModel = koinViewModel()
+    val greenhouses by viewModel.greenhouses.collectAsState()
+    
+    LaunchedEffect(tenantId) {
+        viewModel.loadGreenhouses(tenantId)
+    }
+    
+    // UI implementation
+}
+```

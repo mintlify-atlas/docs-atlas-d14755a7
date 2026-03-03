@@ -1,0 +1,462 @@
+---
+title: Android Platform
+description: Build and deploy GreenhouseAdmin to Android devices and emulators
+---
+
+# Android Platform
+
+Build and deploy GreenhouseAdmin as a native Android application. This guide covers development setup, building APKs, and Android-specific configuration.
+
+## Overview
+
+The Android platform uses:
+- **Target SDK**: 36 (Android 15)
+- **Minimum SDK**: 24 (Android 7.0 Nougat)
+- **Compile SDK**: 36
+- **JVM Target**: Java 11
+- **HTTP Engine**: OkHttp (Ktor client)
+
+<Note>
+  The minimum SDK 24 ensures compatibility with 95%+ of Android devices in the market.
+</Note>
+
+## Prerequisites
+
+<Steps>
+  <Step title="Install Android SDK">
+    Install Android Studio or Android command-line tools:
+
+    - **Android Studio**: [Download](https://developer.android.com/studio)
+    - **Command-line tools**: [SDK Manager](https://developer.android.com/studio/command-line/sdkmanager)
+
+    Required SDK components:
+    - Android SDK Platform 36
+    - Android SDK Build-Tools 34.0.0+
+    - Android SDK Platform-Tools
+  </Step>
+
+  <Step title="Configure ANDROID_HOME">
+    Set the `ANDROID_HOME` environment variable:
+
+    <CodeGroup>
+      ```bash macOS/Linux
+      export ANDROID_HOME=$HOME/Android/Sdk
+      export PATH=$PATH:$ANDROID_HOME/platform-tools
+      ```
+
+      ```powershell Windows
+      $env:ANDROID_HOME = "C:\Users\YourName\AppData\Local\Android\Sdk"
+      $env:PATH += ";$env:ANDROID_HOME\platform-tools"
+      ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Verify Installation">
+    Verify Android tools are accessible:
+
+    ```bash
+    adb --version
+    ```
+  </Step>
+</Steps>
+
+## Configuration
+
+### Android-Specific Dependencies
+
+The Android platform uses the OkHttp engine for Ktor networking:
+
+```kotlin composeApp/build.gradle.kts
+androidMain.dependencies {
+    implementation(compose.preview)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.koin.android)
+    
+    // Ktor - OkHttp engine for Android
+    implementation(libs.ktor.client.okhttp)
+}
+```
+
+### Application Configuration
+
+```kotlin composeApp/build.gradle.kts
+android {
+    namespace = "com.apptolast.greenhouse.admin"
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = "com.apptolast.greenhouse.admin"
+        minSdk = 24
+        targetSdk = 36
+        versionCode = 1
+        versionName = "1.0"
+    }
+    
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+}
+```
+
+### Dependency Injection (Koin)
+
+Android requires platform-specific Koin initialization in the Application class:
+
+```kotlin androidMain/.../GreenhouseApplication.kt
+class GreenhouseApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        
+        initKoin {
+            androidContext(this@GreenhouseApplication)
+        }
+    }
+}
+```
+
+Register in `AndroidManifest.xml`:
+
+```xml
+<application
+    android:name=".GreenhouseApplication"
+    android:label="@string/app_name"
+    ...>
+```
+
+## Development
+
+### Running on Emulator/Device
+
+<Tabs>
+  <Tab title="Android Studio">
+    <Steps>
+      <Step title="Open Project">
+        Open the project root directory in Android Studio.
+      </Step>
+
+      <Step title="Select Configuration">
+        Choose **composeApp** from the run configuration dropdown in the toolbar.
+      </Step>
+
+      <Step title="Select Device">
+        Choose a connected device or emulator from the device dropdown.
+      </Step>
+
+      <Step title="Run">
+        Click the **Run** button (green triangle) or press `Shift+F10`.
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Command Line">
+    <Steps>
+      <Step title="List Devices">
+        Check connected devices:
+
+        ```bash
+        adb devices
+        ```
+      </Step>
+
+      <Step title="Build and Install">
+        Build the debug APK and install:
+
+        <CodeGroup>
+          ```bash macOS/Linux
+          ./gradlew :composeApp:installDebug
+          ```
+
+          ```bash Windows
+          .\gradlew.bat :composeApp:installDebug
+          ```
+        </CodeGroup>
+      </Step>
+
+      <Step title="Launch App">
+        Start the application:
+
+        ```bash
+        adb shell am start -n com.apptolast.greenhouse.admin/.MainActivity
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+### Viewing Logs
+
+Monitor application logs with Logcat:
+
+```bash
+adb logcat | grep GreenhouseAdmin
+```
+
+Or filter by tag:
+
+```bash
+adb logcat -s "ktor.client"
+```
+
+## Building APKs
+
+### Debug Build
+
+Build a debug APK for development:
+
+<CodeGroup>
+  ```bash macOS/Linux
+  ./gradlew :composeApp:assembleDebug
+  ```
+
+  ```bash Windows
+  .\gradlew.bat :composeApp:assembleDebug
+  ```
+</CodeGroup>
+
+**Output**: `composeApp/build/outputs/apk/debug/composeApp-debug.apk`
+
+### Release Build
+
+Build a release APK for production:
+
+<Steps>
+  <Step title="Create Signing Key">
+    Generate a keystore for signing:
+
+    ```bash
+    keytool -genkey -v -keystore greenhouse-release.keystore \
+      -alias greenhouse -keyalg RSA -keysize 2048 -validity 10000
+    ```
+
+    <Warning>
+      Store the keystore and passwords securely. You'll need them for all future releases.
+    </Warning>
+  </Step>
+
+  <Step title="Configure Signing">
+    Create `keystore.properties` in the project root:
+
+    ```properties keystore.properties
+    storeFile=/path/to/greenhouse-release.keystore
+    storePassword=YOUR_STORE_PASSWORD
+    keyAlias=greenhouse
+    keyPassword=YOUR_KEY_PASSWORD
+    ```
+
+    Add to `.gitignore`:
+    ```
+    keystore.properties
+    *.keystore
+    ```
+  </Step>
+
+  <Step title="Update Build Configuration">
+    Add signing config to `build.gradle.kts`:
+
+    ```kotlin composeApp/build.gradle.kts
+    android {
+        signingConfigs {
+            create("release") {
+                val keystoreProperties = Properties()
+                keystoreProperties.load(FileInputStream(rootProject.file("keystore.properties")))
+                
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
+        }
+        
+        buildTypes {
+            release {
+                isMinifyEnabled = true
+                proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Build Release APK">
+    Build the signed release APK:
+
+    ```bash
+    ./gradlew :composeApp:assembleRelease
+    ```
+
+    **Output**: `composeApp/build/outputs/apk/release/composeApp-release.apk`
+  </Step>
+</Steps>
+
+### Android App Bundle (AAB)
+
+Build an Android App Bundle for Google Play Store distribution:
+
+```bash
+./gradlew :composeApp:bundleRelease
+```
+
+**Output**: `composeApp/build/outputs/bundle/release/composeApp-release.aab`
+
+<Note>
+  Google Play Store requires AAB format for new app submissions.
+</Note>
+
+## Android-Specific Features
+
+### Activity Compose Integration
+
+The Android app uses Jetpack Compose with `activity-compose`:
+
+```kotlin androidMain/.../MainActivity.kt
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        setContent {
+            App()  // Shared Compose UI from commonMain
+        }
+    }
+}
+```
+
+### Permissions
+
+For network access, declare in `AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+```
+
+### ProGuard/R8
+
+For release builds with code shrinking, create `proguard-rules.pro`:
+
+```proguard composeApp/proguard-rules.pro
+# Ktor
+-keep class io.ktor.** { *; }
+-keepclassmembers class io.ktor.** { *; }
+
+# Kotlinx Serialization
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.**
+-keep,includedescriptorclasses class com.apptolast.greenhouse.admin.**$$serializer { *; }
+-keepclassmembers class com.apptolast.greenhouse.admin.** {
+    *** Companion;
+}
+
+# Koin
+-keep class org.koin.** { *; }
+-keep class kotlin.Metadata { *; }
+```
+
+## Testing
+
+### Emulator Setup
+
+Create an emulator for testing:
+
+```bash
+# List available system images
+avdmanager list
+
+# Create emulator
+avdmanager create avd -n Pixel_7_API_36 \
+  -k "system-images;android-36;google_apis;x86_64" \
+  -d pixel_7
+
+# Start emulator
+emulator -avd Pixel_7_API_36
+```
+
+### Device Testing
+
+Connect a physical device:
+
+<Steps>
+  <Step title="Enable Developer Options">
+    On the device:
+    1. Go to **Settings > About Phone**
+    2. Tap **Build Number** 7 times
+  </Step>
+
+  <Step title="Enable USB Debugging">
+    1. Go to **Settings > Developer Options**
+    2. Enable **USB Debugging**
+  </Step>
+
+  <Step title="Connect via USB">
+    Connect the device and authorize the computer:
+
+    ```bash
+    adb devices
+    ```
+
+    Accept the authorization prompt on the device.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="ANDROID_HOME not set">
+    **Error**: `SDK location not found`
+
+    **Solution**: Set the `ANDROID_HOME` environment variable or create `local.properties`:
+    ```properties
+    sdk.dir=/path/to/Android/Sdk
+    ```
+  </Accordion>
+
+  <Accordion title="Device not detected">
+    **Error**: No devices shown in `adb devices`
+
+    **Solution**:
+    1. Enable USB debugging on device
+    2. Try different USB cable/port
+    3. Restart adb server:
+       ```bash
+       adb kill-server
+       adb start-server
+       ```
+  </Accordion>
+
+  <Accordion title="Build fails with dex errors">
+    **Error**: `Cannot fit requested classes in a single dex file`
+
+    **Solution**: Enable multidex in `build.gradle.kts`:
+    ```kotlin
+    android {
+        defaultConfig {
+            multiDexEnabled = true
+        }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="OkHttp SSL errors">
+    **Error**: `SSLHandshakeException`
+
+    **Solution**: Ensure your API uses a valid SSL certificate. For development with self-signed certificates, you may need to add network security configuration.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="iOS Platform" icon="apple" href="/platforms/ios">
+    Build and deploy to iOS devices
+  </Card>
+  <Card title="Web Platform" icon="globe" href="/platforms/web">
+    Deploy as a web application
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/concepts/architecture">
+    Understand MVVM architecture and DI
+  </Card>
+  <Card title="Building" icon="hammer" href="/development/building">
+    Build for all platforms
+  </Card>
+</CardGroup>

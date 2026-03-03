@@ -1,0 +1,358 @@
+---
+title: User Models
+description: Data models for user accounts and role-based access control
+---
+
+User models represent authenticated users within the system. Each user belongs to a tenant and has a specific role that determines their permissions.
+
+## User
+
+Domain model representing a user in the application.
+
+```kotlin
+@Serializable
+data class User(
+    val id: Long,
+    val code: String,
+    val username: String,
+    val email: String,
+    val role: UserRole,
+    val tenantId: Long,
+    val isActive: Boolean = true,
+    val lastLogin: String? = null,
+    val createdAt: String? = null,
+    val updatedAt: String? = null
+)
+```
+
+### Fields
+
+<ResponseField name="id" type="Long" required>
+  Unique identifier for the user
+</ResponseField>
+
+<ResponseField name="code" type="String" required>
+  Unique code assigned to the user
+</ResponseField>
+
+<ResponseField name="username" type="String" required>
+  Username for authentication and display
+</ResponseField>
+
+<ResponseField name="email" type="String" required>
+  User's email address
+</ResponseField>
+
+<ResponseField name="role" type="UserRole" required>
+  User's role determining permissions (ADMIN, OPERATOR, or VIEWER)
+</ResponseField>
+
+<ResponseField name="tenantId" type="Long" required>
+  ID of the tenant/client this user belongs to
+</ResponseField>
+
+<ResponseField name="isActive" type="Boolean" default="true">
+  Whether the user account is active
+</ResponseField>
+
+<ResponseField name="lastLogin" type="String" default="null">
+  ISO 8601 timestamp of the user's last login
+</ResponseField>
+
+<ResponseField name="createdAt" type="String" default="null">
+  ISO 8601 timestamp when the user was created
+</ResponseField>
+
+<ResponseField name="updatedAt" type="String" default="null">
+  ISO 8601 timestamp when the user was last updated
+</ResponseField>
+
+### Computed Properties
+
+<ResponseField name="initial" type="String">
+  Returns the first letter of the username in uppercase for avatar display, or "?" if username is empty.
+  
+  ```kotlin
+  val initial: String
+      get() = username.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+  ```
+  
+  Example: "john.doe" → "J", "" → "?"
+</ResponseField>
+
+## UserRole
+
+Enum representing user roles supported by the system.
+
+```kotlin
+enum class UserRole {
+    ADMIN,
+    OPERATOR,
+    VIEWER
+}
+```
+
+### Values
+
+- **ADMIN**: Full administrative access to all features and settings
+- **OPERATOR**: Can manage devices, sectors, and view data
+- **VIEWER**: Read-only access to view data and dashboards
+
+### Computed Properties
+
+<ResponseField name="displayName" type="String">
+  Returns a human-readable display name for the role.
+  
+  ```kotlin
+  val displayName: String
+      get() = name.lowercase().replaceFirstChar { it.uppercase() }
+  ```
+  
+  Example: `ADMIN` → "Admin", `OPERATOR` → "Operator", `VIEWER` → "Viewer"
+</ResponseField>
+
+### Companion Object Methods
+
+<ResponseField name="fromString" type="(String) -> UserRole">
+  Safely parses a role string to `UserRole`, defaulting to `VIEWER` if unknown.
+  
+  ```kotlin
+  fun fromString(value: String): UserRole {
+      return entries.find { it.name.equals(value, ignoreCase = true) } ?: VIEWER
+  }
+  ```
+  
+  Example: `fromString("admin")` → `UserRole.ADMIN`, `fromString("invalid")` → `UserRole.VIEWER`
+</ResponseField>
+
+## API DTOs
+
+### UserResponse
+
+API response DTO for user data from the backend.
+
+```kotlin
+@Serializable
+data class UserResponse(
+    val id: Long,
+    val code: String,
+    val username: String,
+    val email: String,
+    val role: String,
+    val tenantId: Long,
+    val isActive: Boolean,
+    val lastLogin: String? = null,
+    val createdAt: String,
+    val updatedAt: String
+)
+```
+
+<ResponseField name="role" type="String">
+  Role as a string ("ADMIN", "OPERATOR", or "VIEWER") - converted to `UserRole` enum in domain model
+</ResponseField>
+
+<ResponseField name="toUser" type="() -> User">
+  Converts `UserResponse` to `User` domain model.
+  
+  ```kotlin
+  fun UserResponse.toUser() = User(
+      id = id,
+      code = code,
+      username = username,
+      email = email,
+      role = UserRole.fromString(role),
+      tenantId = tenantId,
+      isActive = isActive,
+      lastLogin = lastLogin,
+      createdAt = createdAt,
+      updatedAt = updatedAt
+  )
+  ```
+</ResponseField>
+
+### UserCreateRequest
+
+Request DTO for creating a new user.
+
+```kotlin
+@Serializable
+data class UserCreateRequest(
+    val username: String,
+    val email: String,
+    val passwordRaw: String,
+    val role: String,
+    val isActive: Boolean = true
+)
+```
+
+<ResponseField name="username" type="String" required>
+  Desired username for the new user
+</ResponseField>
+
+<ResponseField name="email" type="String" required>
+  Email address for the new user
+</ResponseField>
+
+<ResponseField name="passwordRaw" type="String" required>
+  Plain text password (will be hashed by the backend)
+</ResponseField>
+
+<ResponseField name="role" type="String" required>
+  Role string ("ADMIN", "OPERATOR", or "VIEWER")
+</ResponseField>
+
+<ResponseField name="isActive" type="Boolean" default="true">
+  Whether the user should be active upon creation
+</ResponseField>
+
+### UserUpdateRequest
+
+Request DTO for updating an existing user. All fields are optional for partial updates.
+
+```kotlin
+@Serializable
+data class UserUpdateRequest(
+    val username: String? = null,
+    val email: String? = null,
+    val passwordRaw: String? = null,
+    val role: String? = null,
+    val isActive: Boolean? = null
+)
+```
+
+<ResponseField name="username" type="String" default="null">
+  Updated username
+</ResponseField>
+
+<ResponseField name="email" type="String" default="null">
+  Updated email address
+</ResponseField>
+
+<ResponseField name="passwordRaw" type="String" default="null">
+  Updated password (plain text, will be hashed)
+</ResponseField>
+
+<ResponseField name="role" type="String" default="null">
+  Updated role string
+</ResponseField>
+
+<ResponseField name="isActive" type="Boolean" default="null">
+  Updated active status
+</ResponseField>
+
+## Usage Examples
+
+### Creating a User
+
+```kotlin
+val user = User(
+    id = 1L,
+    code = "USR001",
+    username = "john.doe",
+    email = "john.doe@example.com",
+    role = UserRole.OPERATOR,
+    tenantId = 1L,
+    isActive = true,
+    lastLogin = "2024-03-01T14:30:00Z",
+    createdAt = "2024-01-15T10:00:00Z",
+    updatedAt = "2024-03-01T14:30:00Z"
+)
+
+println(user.initial) // "J"
+println(user.role.displayName) // "Operator"
+```
+
+### Creating a User via API
+
+```kotlin
+val createRequest = UserCreateRequest(
+    username = "jane.smith",
+    email = "jane.smith@example.com",
+    passwordRaw = "SecurePassword123!",
+    role = "ADMIN",
+    isActive = true
+)
+
+val response: UserResponse = apiClient.createUser(
+    tenantId = 1L,
+    request = createRequest
+)
+
+val user: User = response.toUser()
+```
+
+### Updating a User
+
+```kotlin
+val updateRequest = UserUpdateRequest(
+    role = "ADMIN",  // Promote to admin
+    isActive = true
+)
+
+val response: UserResponse = apiClient.updateUser(
+    tenantId = 1L,
+    userId = 1L,
+    request = updateRequest
+)
+```
+
+### Role-Based Access Control
+
+```kotlin
+fun canEditSettings(user: User): Boolean {
+    return when (user.role) {
+        UserRole.ADMIN -> true
+        UserRole.OPERATOR -> false
+        UserRole.VIEWER -> false
+    }
+}
+
+fun canViewData(user: User): Boolean {
+    return user.isActive && user.role in listOf(
+        UserRole.ADMIN,
+        UserRole.OPERATOR,
+        UserRole.VIEWER
+    )
+}
+
+val user = getUser(1L)
+if (canEditSettings(user)) {
+    // Show settings UI
+}
+```
+
+### Filtering Users by Role
+
+```kotlin
+val users = getUsers(tenantId = 1L)
+val admins = users.filter { it.role == UserRole.ADMIN }
+val operators = users.filter { it.role == UserRole.OPERATOR }
+val viewers = users.filter { it.role == UserRole.VIEWER }
+
+println("Admins: ${admins.size}")
+println("Operators: ${operators.size}")
+println("Viewers: ${viewers.size}")
+```
+
+### Parsing Role from String
+
+```kotlin
+val roleString = "operator"
+val role = UserRole.fromString(roleString)
+println(role.displayName) // "Operator"
+
+// Safe parsing with invalid input
+val invalidRole = UserRole.fromString("invalid")
+println(invalidRole) // UserRole.VIEWER (default)
+```
+
+### Checking Last Login
+
+```kotlin
+val user = getUser(1L)
+if (user.lastLogin != null) {
+    println("Last login: ${user.lastLogin}")
+} else {
+    println("User has never logged in")
+}
+```

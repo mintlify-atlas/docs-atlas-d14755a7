@@ -1,0 +1,344 @@
+---
+title: Architecture
+description: Understanding the MVVM architecture and repository pattern used in Greenhouse Admin
+---
+
+Greenhouse Admin follows a clean architecture approach using the **MVVM (Model-View-ViewModel)** pattern combined with the **Repository pattern** to ensure separation of concerns, testability, and maintainability across all platforms.
+
+## Architecture layers
+
+The application is structured in three distinct layers:
+
+### Presentation layer
+
+Contains UI components and ViewModels that manage UI state and handle user interactions.
+
+```
+presentation/
+├── ui/
+│   ├── components/      # Reusable Compose components
+│   ├── screens/         # Full screen composables
+│   └── theme/           # Colors, Typography, Theme
+└── viewmodel/           # ViewModels for state management
+```
+
+**ViewModels** use `StateFlow` to expose immutable state to the UI and handle all business logic coordination:
+
+```kotlin presentation/viewmodel/LoginViewModel.kt
+class LoginViewModel(
+    private val authRepository: AuthRepository
+) : ViewModel() {
+    private val _uiState = MutableStateFlow(LoginUiState())
+    val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
+
+    fun onEvent(event: LoginEvent) {
+        when (event) {
+            is LoginEvent.OnLoginClicked -> performLogin()
+            // ... other events
+        }
+    }
+}
+```
+
+### Domain layer
+
+Defines business logic interfaces and use cases (future). Currently contains repository interfaces:
+
+```
+domain/
+├── repository/          # Repository interfaces
+└── auth/                # Authentication event management
+```
+
+**Repository interfaces** define contracts for data operations:
+
+```kotlin domain/repository/AuthRepository.kt
+interface AuthRepository {
+    suspend fun login(username: String, password: String): Result<UserSession>
+    suspend fun logout(): Result<Unit>
+    fun isAuthenticated(): Boolean
+    fun getCurrentSession(): UserSession?
+    suspend fun validateSession(): Boolean
+}
+```
+
+### Data layer
+
+Implements repository interfaces and handles all data operations:
+
+```
+data/
+├── model/               # DTOs and domain models
+├── remote/
+│   ├── api/             # API service implementations
+│   └── KtorClient.kt    # HTTP client configuration
+├── local/               # Local storage (expect/actual)
+└── repository/          # Repository implementations
+```
+
+**Repository implementations** coordinate between API services and local storage:
+
+```kotlin data/repository/AuthRepositoryImpl.kt
+class AuthRepositoryImpl(
+    private val authApiService: AuthApiService,
+    private val tokenStorage: TokenStorage
+) : AuthRepository {
+    override suspend fun login(username: String, password: String): Result<UserSession> {
+        return runCatching {
+            val response = authApiService.login(username, password)
+            tokenStorage.saveAccessToken(response.token)
+            tokenStorage.saveRoles(response.roles)
+            response.toUserSession()
+        }
+    }
+}
+```
+
+## Dependency injection with Koin
+
+Greenhouse Admin uses **Koin 4.1.1** for dependency injection across all platforms. Dependencies are organized into modules:
+
+### Module organization
+
+<AccordionGroup>
+  <Accordion title="DataModule - Data layer dependencies">
+    Provides HTTP clients, API services, and repository implementations:
+
+    ```kotlin di/DataModule.kt
+    val dataModule = module {
+        // Platform-specific token storage
+        singleOf(::TokenStorage)
+        
+        // HTTP Client with auth interceptor
+        single { createHttpClient(get(), get()) }
+        
+        // API Services
+        singleOf(::AuthApiService)
+        singleOf(::TenantsApiService)
+        singleOf(::GreenhousesApiService)
+        // ... more services
+        
+        // Repository implementations bound to interfaces
+        singleOf(::AuthRepositoryImpl) bind AuthRepository::class
+        singleOf(::ClientsRepositoryImpl) bind ClientsRepository::class
+        // ... more repositories
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="PresentationModule - ViewModels">
+    Provides ViewModels for the MVVM architecture:
+
+    ```kotlin di/PresentationModule.kt
+    val presentationModule = module {
+        viewModelOf(::LoginViewModel)
+        viewModelOf(::DashboardViewModel)
+        viewModelOf(::ClientsViewModel)
+        
+        // ViewModel with parameters
+        viewModel { (clientId: Long) ->
+            ClientDetailViewModel(clientId, get(), get(), get())
+        }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="PlatformModule - Platform-specific dependencies">
+    Platform-specific implementations using expect/actual pattern. Each platform provides its own implementation:
+    
+    - **Android**: `PlatformModule.android.kt`
+    - **iOS**: `PlatformModule.ios.kt`
+    - **JVM**: `PlatformModule.jvm.kt`
+    - **JS**: `PlatformModule.js.kt`
+    - **WasmJS**: `PlatformModule.wasmJs.kt`
+  </Accordion>
+</AccordionGroup>
+
+### Koin initialization
+
+Koin must be initialized before accessing any dependencies:
+
+```kotlin di/KoinInitializer.kt
+fun initKoin(appDeclaration: KoinAppDeclaration? = null) {
+    startKoin {
+        appDeclaration?.invoke(this)
+        modules(
+            dataModule,
+            domainModule,
+            presentationModule,
+            platformModule()
+        )
+    }
+}
+```
+
+Each platform initializes Koin at its entry point:
+
+<CodeGroup>
+```kotlin Android
+// GreenhouseApplication.kt
+class GreenhouseApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        initKoin { androidContext(this@GreenhouseApplication) }
+    }
+}
+```
+
+```swift iOS
+// iOSApp.swift
+@main
+struct iOSApp: App {
+    init() {
+        KoinInitializerKt.doInitKoin()
+    }
+}
+```
+
+```kotlin Desktop/Web
+// main.kt
+fun main() {
+    initKoin()
+    application {
+        // ...
+    }
+}
+```
+</CodeGroup>
+
+### Using ViewModels in Composables
+
+Inject ViewModels using Koin's Compose integration:
+
+```kotlin
+import org.koin.compose.viewmodel.koinViewModel
+
+@Composable
+fun LoginScreen() {
+    val viewModel: LoginViewModel = koinViewModel()
+    val uiState by viewModel.uiState.collectAsState()
+    
+    // UI implementation
+}
+```
+
+## Repository pattern
+
+The repository pattern provides a clean API for data access and abstracts the data source:
+
+<Steps>
+  <Step title="Define interface in domain layer">
+    Repository interfaces live in `domain/repository/` and define what operations are available:
+    
+    ```kotlin
+    interface ClientsRepository {
+        suspend fun getAllClients(): Result<List<Client>>
+        suspend fun getClientById(id: Long): Result<Client>
+        suspend fun createClient(request: CreateTenantRequest): Result<Client>
+    }
+    ```
+  </Step>
+  
+  <Step title="Implement in data layer">
+    Repository implementations live in `data/repository/` and coordinate data sources:
+    
+    ```kotlin
+    class ClientsRepositoryImpl(
+        private val tenantsApiService: TenantsApiService
+    ) : ClientsRepository {
+        override suspend fun getAllClients(): Result<List<Client>> {
+            return runCatching {
+                tenantsApiService.getAllTenants().map { it.toClient() }
+            }
+        }
+    }
+    ```
+  </Step>
+  
+  <Step title="Bind in Koin module">
+    Register the implementation and bind it to the interface:
+    
+    ```kotlin
+    singleOf(::ClientsRepositoryImpl) bind ClientsRepository::class
+    ```
+  </Step>
+  
+  <Step title="Inject in ViewModel">
+    ViewModels depend on repository interfaces, not implementations:
+    
+    ```kotlin
+    class ClientsViewModel(
+        private val clientsRepository: ClientsRepository
+    ) : ViewModel() {
+        // ViewModel logic
+    }
+    ```
+  </Step>
+</Steps>
+
+<Note>
+The repository pattern enables easy testing by allowing mock implementations to be injected during tests.
+</Note>
+
+## Complete directory structure
+
+Here's the full structure of the application in `composeApp/src/commonMain/kotlin/com/apptolast/greenhouse/admin/`:
+
+```
+├── data/
+│   ├── local/              # Platform-specific storage
+│   ├── model/              # DTOs and domain models
+│   ├── remote/
+│   │   ├── api/            # API service implementations
+│   │   └── KtorClient.kt   # HTTP client setup
+│   └── repository/         # Repository implementations
+├── di/
+│   ├── DataModule.kt
+│   ├── DomainModule.kt
+│   ├── PresentationModule.kt
+│   ├── PlatformModule.kt   # expect declaration
+│   └── KoinInitializer.kt
+├── domain/
+│   ├── auth/               # Auth event management
+│   └── repository/         # Repository interfaces
+└── presentation/
+    ├── navigation/         # Navigation logic
+    ├── ui/
+    │   ├── adaptive/       # Responsive UI helpers
+    │   ├── components/     # Reusable components
+    │   ├── screens/        # Screen composables
+    │   └── theme/          # App theme
+    └── viewmodel/          # ViewModels
+```
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Constructor injection" icon="syringe">
+    Always use constructor injection with Koin, never field injection.
+  </Card>
+  
+  <Card title="Depend on interfaces" icon="plug">
+    ViewModels and use cases should depend on repository interfaces, not concrete implementations.
+  </Card>
+  
+  <Card title="StateFlow for UI state" icon="chart-line">
+    Use `StateFlow` in ViewModels and collect with `collectAsState()` in Composables.
+  </Card>
+  
+  <Card title="Result wrapper" icon="box">
+    Repository methods return `Result<T>` for consistent error handling.
+  </Card>
+</CardGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Multiplatform structure" href="/concepts/multiplatform">
+    Learn about source sets and platform-specific code
+  </Card>
+  
+  <Card title="Authentication flow" href="/concepts/authentication">
+    Understand how auth works in the architecture
+  </Card>
+</CardGroup>
