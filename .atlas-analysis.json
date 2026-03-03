@@ -1,0 +1,127 @@
+{
+  "projectType": "saas",
+  "projectName": "Greenhouse Admin",
+  "projectDescription": "Admin portal for managing greenhouse clients with multi-platform support",
+  "theme": "aspen",
+  "primaryColor": "#00E676",
+  "lightColor": "#69F0AE",
+  "darkColor": "#00C853",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/multiplatform",
+              "concepts/authentication",
+              "concepts/data-model"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/client-management",
+              "features/greenhouse-management",
+              "features/device-management",
+              "features/user-management",
+              "features/dashboard"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/setup",
+              "development/building",
+              "development/testing",
+              "development/deployment"
+            ]
+          },
+          {
+            "group": "Platform Guides",
+            "pages": [
+              "platforms/web",
+              "platforms/android",
+              "platforms/ios",
+              "platforms/desktop"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/authentication"
+            ]
+          },
+          {
+            "group": "Repositories",
+            "pages": [
+              "api/repositories/clients",
+              "api/repositories/greenhouses",
+              "api/repositories/sectors",
+              "api/repositories/devices",
+              "api/repositories/users",
+              "api/repositories/alerts",
+              "api/repositories/settings"
+            ]
+          },
+          {
+            "group": "Data Models",
+            "pages": [
+              "api/models/client",
+              "api/models/greenhouse",
+              "api/models/sector",
+              "api/models/device",
+              "api/models/user",
+              "api/models/alert"
+            ]
+          },
+          {
+            "group": "ViewModels",
+            "pages": [
+              "api/viewmodels/clients",
+              "api/viewmodels/dashboard",
+              "api/viewmodels/login"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multi-platform support (Web, Android, iOS, Desktop)",
+    "Client and tenant management",
+    "Greenhouse and sector configuration",
+    "Device monitoring (sensors and actuators)",
+    "Role-based user access control",
+    "Real-time dashboard metrics",
+    "Dark theme UI with Material 3"
+  ],
+  "publicApiSurface": [
+    "ClientsRepository",
+    "GreenhousesRepository",
+    "SectorsRepository",
+    "DevicesRepository",
+    "UsersRepository",
+    "AlertsRepository",
+    "SettingsRepository",
+    "DashboardRepository",
+    "AuthRepository",
+    "CatalogRepository"
+  ]
+}
