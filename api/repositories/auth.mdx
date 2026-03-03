@@ -1,0 +1,145 @@
+---
+title: AuthRepository
+description: Repository interface for authentication operations including login, logout, and session management
+---
+
+## Overview
+
+The `AuthRepository` interface handles all authentication-related operations including user login, logout, session validation, and token management. It provides methods for both local and server-side session management.
+
+## Methods
+
+### login()
+
+Authenticate a user with username and password. Stores the JWT token on successful login.
+
+**Parameters**
+
+<ParamField path="username" type="String" required>
+  The user's username or email address
+</ParamField>
+
+<ParamField path="password" type="String" required>
+  The user's password
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<UserSession>" type="Result">
+  Result containing UserSession with JWT token and user details, or error on failure
+</ResponseField>
+
+### logout()
+
+Log out the current user by calling the server logout endpoint and clearing stored tokens.
+
+**Returns**
+
+<ResponseField name="Result<Unit>" type="Result">
+  Result indicating success or failure of logout operation
+</ResponseField>
+
+### clearLocalSession()
+
+Clear local tokens without calling the server. Used for immediate local logout when server communication is not required or has failed.
+
+**Returns**
+
+Void - no return value
+
+### isAuthenticated()
+
+Check if a user is currently authenticated by verifying the presence of a valid stored token.
+
+**Returns**
+
+<ResponseField name="Boolean" type="Boolean">
+  `true` if user has a valid token stored, `false` otherwise
+</ResponseField>
+
+### getCurrentSession()
+
+Retrieve the current user session if authenticated.
+
+**Returns**
+
+<ResponseField name="UserSession?" type="UserSession">
+  UserSession object if authenticated, `null` if not authenticated
+</ResponseField>
+
+### validateSession()
+
+Validates the current session with the backend by making a lightweight API call to verify the token is still valid.
+
+**Returns**
+
+<ResponseField name="Boolean" type="Boolean">
+  `true` if session is valid, `false` if expired or invalid
+</ResponseField>
+
+## Usage Example
+
+```kotlin
+class LoginViewModel(
+    private val authRepository: AuthRepository
+) : ViewModel() {
+    private val _state = MutableStateFlow(LoginUiState())
+    val state: StateFlow<LoginUiState> = _state.asStateFlow()
+
+    fun onLogin(username: String, password: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+            
+            authRepository.login(username.trim(), password)
+                .onSuccess { session ->
+                    _state.update { it.copy(
+                        isLoading = false,
+                        isAuthenticated = true
+                    ) }
+                }
+                .onFailure { error ->
+                    _state.update { it.copy(
+                        isLoading = false,
+                        error = error.message ?: "Login failed"
+                    ) }
+                }
+        }
+    }
+    
+    fun validateSession() {
+        viewModelScope.launch {
+            val isValid = authRepository.validateSession()
+            _state.update { it.copy(isAuthenticated = isValid) }
+        }
+    }
+    
+    fun logout() {
+        viewModelScope.launch {
+            authRepository.logout()
+                .onSuccess {
+                    _state.update { it.copy(isAuthenticated = false) }
+                }
+        }
+    }
+}
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Authentication Flow" icon="lock" href="/api/authentication">
+    Complete authentication implementation guide
+  </Card>
+  
+  <Card title="UsersRepository" icon="users" href="/api/repositories/users">
+    User management operations
+  </Card>
+  
+  <Card title="User Models" icon="database" href="/api/models/user">
+    User and UserSession data models
+  </Card>
+  
+  <Card title="LoginViewModel" icon="desktop" href="/api/viewmodels/login">
+    Login screen state management
+  </Card>
+</CardGroup>

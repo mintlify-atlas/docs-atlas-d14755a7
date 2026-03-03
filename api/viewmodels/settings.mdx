@@ -1,0 +1,295 @@
+---
+title: SettingsViewModel
+description: ViewModel for settings screen with account management and catalog CRUD operations
+---
+
+## Overview
+
+The `SettingsViewModel` manages the settings screen which includes account management and CRUD operations for all global catalog data. It follows the MVVM+MVI pattern with a single UI state and event-driven updates.
+
+## UI State
+
+```kotlin
+data class SettingsUiState(
+    // Account tab
+    val username: String = "",
+    val roles: List<String> = emptyList(),
+    val showLogoutConfirmation: Boolean = false,
+    val isLoggingOut: Boolean = false,
+    val isLogoutSuccessful: Boolean = false,
+    
+    // Tab selection
+    val selectedTab: SettingsTab = SettingsTab.ACCOUNT,
+    
+    // Catalog loading
+    val isCatalogsLoading: Boolean = true,
+    val catalogsError: String? = null,
+    
+    // Device Categories, Types, Units
+    val deviceCategories: List<DeviceCatalogCategory> = emptyList(),
+    val deviceTypes: List<DeviceCatalogType> = emptyList(),
+    val deviceUnits: List<DeviceCatalogUnit> = emptyList(),
+    
+    // Alert Types and Severities
+    val alertTypes: List<AlertType> = emptyList(),
+    val alertSeverities: List<AlertSeverityCatalog> = emptyList(),
+    
+    // Periods and Actuator States
+    val periods: List<Period> = emptyList(),
+    val actuatorStates: List<ActuatorState> = emptyList(),
+    
+    // Form dialogs and submission states for each catalog type
+    // ... extensive state fields for CRUD operations
+)
+```
+
+### Key State Fields
+
+<ResponseField name="username" type="String">
+  Current logged-in username from session
+</ResponseField>
+
+<ResponseField name="roles" type="List<String>">
+  User roles (ADMIN, OPERATOR, VIEWER)
+</ResponseField>
+
+<ResponseField name="selectedTab" type="SettingsTab">
+  Currently selected tab (ACCOUNT, DEVICE_CATEGORIES, DEVICE_TYPES, etc.)
+</ResponseField>
+
+<ResponseField name="isCatalogsLoading" type="Boolean">
+  True when loading all catalog data in parallel
+</ResponseField>
+
+<ResponseField name="deviceCategories" type="List<DeviceCatalogCategory>">
+  List of device categories (Sensor, Actuator)
+</ResponseField>
+
+<ResponseField name="deviceTypes" type="List<DeviceCatalogType>">
+  List of device types (Temperature Sensor, Water Valve, etc.)
+</ResponseField>
+
+<ResponseField name="deviceUnits" type="List<DeviceCatalogUnit>">
+  List of measurement units (°C, %, kPa, etc.)
+</ResponseField>
+
+<ResponseField name="alertTypes" type="List<AlertType>">
+  List of alert types
+</ResponseField>
+
+<ResponseField name="alertSeverities" type="List<AlertSeverityCatalog>">
+  List of alert severity levels
+</ResponseField>
+
+<ResponseField name="periods" type="List<Period>">
+  List of periods (DAY, NIGHT, ALL)
+</ResponseField>
+
+<ResponseField name="actuatorStates" type="List<ActuatorState>">
+  List of actuator states (ON, OFF, STANDBY, etc.)
+</ResponseField>
+
+## Events
+
+The ViewModel handles events through a sealed interface with categories for each settings tab:
+
+```kotlin
+sealed interface SettingsEvent {
+    // Account events
+    data object OnLogoutClicked : SettingsEvent
+    data object OnConfirmLogout : SettingsEvent
+    data object OnCancelLogout : SettingsEvent
+    
+    // Tab selection
+    data class OnTabSelected(val tab: SettingsTab) : SettingsEvent
+    
+    // Device Categories CRUD
+    data object OnAddDeviceCategoryClicked : SettingsEvent
+    data class OnEditDeviceCategoryClicked(val category: DeviceCatalogCategory) : SettingsEvent
+    data class OnDeleteDeviceCategoryClicked(val category: DeviceCatalogCategory) : SettingsEvent
+    data class OnSubmitDeviceCategory(val name: String) : SettingsEvent
+    
+    // Device Types CRUD
+    data class OnSubmitDeviceType(
+        val name: String,
+        val description: String?,
+        val categoryId: Short,
+        val defaultUnitId: Short?,
+        val dataType: String?,
+        val minExpectedValue: Double?,
+        val maxExpectedValue: Double?,
+        val controlType: String?,
+        val isActive: Boolean
+    ) : SettingsEvent
+    data class OnActivateDeviceType(val deviceType: DeviceCatalogType) : SettingsEvent
+    data class OnDeactivateDeviceType(val deviceType: DeviceCatalogType) : SettingsEvent
+    
+    // ... similar events for other catalog types
+    
+    // Refresh
+    data object OnRefreshCatalogs : SettingsEvent
+}
+```
+
+## Settings Tabs
+
+### SettingsTab Enum
+
+```kotlin
+enum class SettingsTab {
+    ACCOUNT,
+    DEVICE_CATEGORIES,
+    DEVICE_TYPES,
+    DEVICE_UNITS,
+    ALERT_TYPES,
+    ALERT_SEVERITIES,
+    PERIODS,
+    ACTUATOR_STATES
+}
+```
+
+Each tab provides CRUD operations for its respective catalog type.
+
+## Key Methods
+
+### Initialization
+
+```kotlin
+init {
+    loadUserInfo()
+    loadAllCatalogs()
+}
+```
+
+On initialization, the ViewModel:
+1. Loads current user session info
+2. Loads all catalog data in parallel from CatalogRepository
+
+### Account Management
+
+- `showLogoutConfirmation()` - Shows logout confirmation dialog
+- `performLogout()` - Calls AuthRepository.logout() and clears session
+- `loadUserInfo()` - Loads current user info from AuthRepository
+
+### Catalog Loading
+
+```kotlin
+private fun loadAllCatalogs() {
+    viewModelScope.launch {
+        // Load all 7 catalog types in parallel
+        val categoriesResult = catalogRepository.getDeviceCategories()
+        val typesResult = catalogRepository.getDeviceTypes()
+        val unitsResult = catalogRepository.getDeviceUnits()
+        val alertTypesResult = catalogRepository.getAlertTypes()
+        val severitiesResult = catalogRepository.getAlertSeverities()
+        val periodsResult = catalogRepository.getPeriods()
+        val actuatorStatesResult = catalogRepository.getActuatorStates()
+        
+        // Update state with sorted results
+        _uiState.update { state ->
+            state.copy(
+                isCatalogsLoading = false,
+                deviceCategories = categoriesResult.getOrDefault(emptyList()).sortedBy { it.id },
+                // ... other catalogs
+            )
+        }
+    }
+}
+```
+
+### CRUD Operations Pattern
+
+Each catalog type follows the same CRUD pattern:
+
+1. **Create/Edit** - Show dialog with form mode (Create or Edit)
+2. **Submit** - Call repository create/update method based on mode
+3. **Delete** - Show confirmation, then call repository delete method
+4. **Reload** - Refresh the specific catalog list after successful operation
+
+## Usage Example
+
+```kotlin
+@Composable
+fun SettingsScreen() {
+    val viewModel: SettingsViewModel = koinViewModel()
+    val state by viewModel.uiState.collectAsState()
+
+    Scaffold(
+        topBar = { SettingsTopBar() }
+    ) { padding ->
+        Column(modifier = Modifier.padding(padding)) {
+            // Tab selection
+            SettingsTabRow(
+                selectedTab = state.selectedTab,
+                onTabSelected = { viewModel.onEvent(SettingsEvent.OnTabSelected(it)) }
+            )
+            
+            // Tab content
+            when (state.selectedTab) {
+                SettingsTab.ACCOUNT -> AccountTab(
+                    username = state.username,
+                    roles = state.roles,
+                    onLogoutClick = { viewModel.onEvent(SettingsEvent.OnLogoutClicked) }
+                )
+                
+                SettingsTab.DEVICE_CATEGORIES -> DeviceCategoriesTab(
+                    categories = state.deviceCategories,
+                    onAdd = { viewModel.onEvent(SettingsEvent.OnAddDeviceCategoryClicked) },
+                    onEdit = { viewModel.onEvent(SettingsEvent.OnEditDeviceCategoryClicked(it)) },
+                    onDelete = { viewModel.onEvent(SettingsEvent.OnDeleteDeviceCategoryClicked(it)) }
+                )
+                
+                // ... other tabs
+            }
+        }
+        
+        // Logout confirmation dialog
+        if (state.showLogoutConfirmation) {
+            LogoutConfirmationDialog(
+                onConfirm = { viewModel.onEvent(SettingsEvent.OnConfirmLogout) },
+                onDismiss = { viewModel.onEvent(SettingsEvent.OnCancelLogout) }
+            )
+        }
+    }
+}
+```
+
+## Form Modes
+
+Each catalog type uses a sealed interface to track form mode:
+
+```kotlin
+sealed interface DeviceCategoryFormMode {
+    data object Create : DeviceCategoryFormMode
+    data class Edit(val category: DeviceCatalogCategory) : DeviceCategoryFormMode
+}
+
+sealed interface DeviceTypeFormMode {
+    data object Create : DeviceTypeFormMode
+    data class Edit(val deviceType: DeviceCatalogType) : DeviceTypeFormMode
+}
+
+// ... similar for other catalog types
+```
+
+This pattern allows the same dialog to be used for both create and edit operations.
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="CatalogRepository" icon="database" href="/api/repositories/catalog">
+    Complete catalog CRUD operations
+  </Card>
+  
+  <Card title="AuthRepository" icon="lock" href="/api/repositories/auth">
+    Authentication and session management
+  </Card>
+  
+  <Card title="Device Models" icon="microchip" href="/api/models/device">
+    Device catalog data models
+  </Card>
+  
+  <Card title="Settings Models" icon="sliders" href="/api/models/settings">
+    Period and settings models
+  </Card>
+</CardGroup>

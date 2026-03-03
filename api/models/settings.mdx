@@ -1,0 +1,225 @@
+---
+title: Settings Models
+description: Data models for settings configuration and period catalog
+---
+
+## Overview
+
+Settings models define parameter threshold configurations for greenhouse sectors. They work in conjunction with periods (DAY, NIGHT, ALL) to control automation behavior.
+
+## Setting
+
+Domain model representing a parameter threshold configuration for a sector.
+
+```kotlin
+data class Setting(
+    val id: Long,
+    val code: String,
+    val sectorId: Long,
+    val sectorCode: String? = null,
+    val tenantId: Long,
+    val parameterId: Short,
+    val parameterName: String?,
+    val actuatorStateId: Short?,
+    val actuatorStateName: String?,
+    val value: String?,
+    val description: String?,
+    val isActive: Boolean,
+    val createdAt: String
+)
+```
+
+### Fields
+
+<ResponseField name="id" type="Long">
+  Unique setting identifier
+</ResponseField>
+
+<ResponseField name="code" type="String">
+  Auto-generated setting code
+</ResponseField>
+
+<ResponseField name="sectorId" type="Long">
+  ID of the sector this setting applies to
+</ResponseField>
+
+<ResponseField name="tenantId" type="Long">
+  ID of the owning tenant/client
+</ResponseField>
+
+<ResponseField name="parameterId" type="Short">
+  ID of the parameter (references device_types, e.g., TEMPERATURE, HUMIDITY)
+</ResponseField>
+
+<ResponseField name="parameterName" type="String">
+  Human-readable name of the parameter
+</ResponseField>
+
+<ResponseField name="actuatorStateId" type="Short">
+  Optional actuator state to trigger (e.g., ON, OFF)
+</ResponseField>
+
+<ResponseField name="actuatorStateName" type="String">
+  Human-readable name of the actuator state
+</ResponseField>
+
+<ResponseField name="value" type="String">
+  Threshold value for the setting
+</ResponseField>
+
+<ResponseField name="description" type="String">
+  Optional description of the setting
+</ResponseField>
+
+<ResponseField name="isActive" type="Boolean">
+  Whether this setting is currently active
+</ResponseField>
+
+### Computed Properties
+
+<ResponseField name="initials" type="String">
+  First two letters of parameter name in uppercase (or "SE" as fallback)
+</ResponseField>
+
+<ResponseField name="displayName" type="String">
+  Parameter name or "Parameter {parameterId}" as fallback
+</ResponseField>
+
+<ResponseField name="valueDisplay" type="String">
+  Formatted value or "-" if null
+</ResponseField>
+
+<ResponseField name="actuatorStateDisplayName" type="String">
+  Actuator state name or "State {actuatorStateId}" or "-"
+</ResponseField>
+
+## Period
+
+Domain model for period catalog entry. Periods define when a setting applies: DAY, NIGHT, or ALL (24h).
+
+```kotlin
+data class Period(
+    val id: Short,
+    val name: String
+) {
+    val displayName: String
+        get() = when (name.uppercase()) {
+            "DAY" -> "Day"
+            "NIGHT" -> "Night"
+            "ALL" -> "All Day"
+            else -> name
+        }
+}
+```
+
+### Fields
+
+<ResponseField name="id" type="Short">
+  Unique period identifier
+</ResponseField>
+
+<ResponseField name="name" type="String">
+  Period name (DAY, NIGHT, ALL)
+</ResponseField>
+
+### Computed Properties
+
+<ResponseField name="displayName" type="String">
+  User-friendly display name for the period
+</ResponseField>
+
+## API DTOs
+
+### SettingResponse
+
+API response DTO for settings from the backend.
+
+```kotlin
+@Serializable
+data class SettingResponse(
+    val id: Long,
+    val code: String,
+    val sectorId: Long,
+    val sectorCode: String? = null,
+    val tenantId: Long,
+    val parameterId: Short,
+    val parameterName: String? = null,
+    val actuatorStateId: Short? = null,
+    val actuatorStateName: String? = null,
+    val value: String? = null,
+    val description: String? = null,
+    val isActive: Boolean = true,
+    val createdAt: String,
+    val updatedAt: String
+)
+```
+
+### SettingCreateRequest
+
+Request DTO for creating a new setting.
+
+```kotlin
+@Serializable
+data class SettingCreateRequest(
+    val sectorId: Long,
+    val parameterId: Short,
+    val actuatorStateId: Short? = null,
+    val value: String? = null,
+    val description: String? = null,
+    val isActive: Boolean = true
+)
+```
+
+### SettingUpdateRequest
+
+Request DTO for updating an existing setting. All fields are optional for partial updates.
+
+```kotlin
+@Serializable
+data class SettingUpdateRequest(
+    val sectorId: Long? = null,
+    val parameterId: Short? = null,
+    val actuatorStateId: Short? = null,
+    val value: String? = null,
+    val description: String? = null,
+    val isActive: Boolean? = null
+)
+```
+
+## Extension Functions
+
+### toDomain()
+
+Converts API DTOs to domain models:
+
+```kotlin
+fun PeriodResponse.toDomain() = Period(id = id, name = name)
+
+fun SettingResponse.toDomain() = Setting(
+    id = id,
+    code = code,
+    sectorId = sectorId,
+    sectorCode = sectorCode,
+    // ... other fields
+)
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="SettingsRepository" icon="database" href="/api/repositories/settings">
+    Repository for settings CRUD operations
+  </Card>
+  
+  <Card title="CatalogRepository" icon="book" href="/api/repositories/catalog">
+    Manage periods and other catalog data
+  </Card>
+  
+  <Card title="Sector Models" icon="grid" href="/api/models/sector">
+    Sector data models
+  </Card>
+  
+  <Card title="Device Models" icon="microchip" href="/api/models/device">
+    Device and actuator state models
+  </Card>
+</CardGroup>

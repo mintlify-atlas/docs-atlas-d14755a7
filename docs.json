@@ -83,13 +83,16 @@
           {
             "group": "Repositories",
             "pages": [
+              "api/repositories/auth",
               "api/repositories/clients",
               "api/repositories/greenhouses",
               "api/repositories/sectors",
               "api/repositories/devices",
               "api/repositories/users",
               "api/repositories/alerts",
-              "api/repositories/settings"
+              "api/repositories/settings",
+              "api/repositories/dashboard",
+              "api/repositories/catalog"
             ]
           },
           {
@@ -100,7 +103,9 @@
               "api/models/sector",
               "api/models/device",
               "api/models/user",
-              "api/models/alert"
+              "api/models/alert",
+              "api/models/dashboard",
+              "api/models/settings"
             ]
           },
           {
@@ -108,7 +113,8 @@
             "pages": [
               "api/viewmodels/clients",
               "api/viewmodels/dashboard",
-              "api/viewmodels/login"
+              "api/viewmodels/login",
+              "api/viewmodels/settings"
             ]
           }
         ]

@@ -1,0 +1,768 @@
+---
+title: CatalogRepository
+description: Repository interface for managing global catalog data including device categories, types, units, alert configurations, and actuator states
+---
+
+## Overview
+
+The `CatalogRepository` interface manages global catalog data that is shared across all tenants. This includes device categories and types, measurement units, alert types and severities, periods, and actuator states. Catalog data is used in dropdowns and forms throughout the application.
+
+<Note>
+  Catalog data is **global** and not tenant-specific. Changes affect all tenants in the system.
+</Note>
+
+## Device Categories
+
+### getDeviceCategories()
+
+Fetches all device categories from the catalog (e.g., Sensor, Actuator).
+
+**Returns**
+
+<ResponseField name="Result<List<DeviceCatalogCategory>>" type="Result">
+  Result containing list of device categories, or error on failure
+</ResponseField>
+
+### createDeviceCategory()
+
+Creates a new device category.
+
+**Parameters**
+
+<ParamField path="name" type="String" required>
+  The category name (e.g., "Sensor", "Actuator")
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<DeviceCatalogCategory>" type="Result">
+  Result containing the created category with auto-generated ID, or error on failure
+</ResponseField>
+
+### updateDeviceCategory()
+
+Updates an existing device category.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The category ID to update
+</ParamField>
+
+<ParamField path="name" type="String" required>
+  The new category name
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<DeviceCatalogCategory>" type="Result">
+  Result containing the updated category, or error on failure
+</ResponseField>
+
+### deleteDeviceCategory()
+
+Deletes a device category.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The category ID to delete
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Unit>" type="Result">
+  Result indicating success or failure
+</ResponseField>
+
+## Device Types
+
+### getDeviceTypes()
+
+Fetches all device types from the catalog (e.g., Temperature Sensor, Humidity Sensor, Water Valve).
+
+**Returns**
+
+<ResponseField name="Result<List<DeviceCatalogType>>" type="Result">
+  Result containing list of device types with their properties, or error on failure
+</ResponseField>
+
+### createDeviceType()
+
+Creates a new device type with complete configuration.
+
+**Parameters**
+
+<ParamField path="name" type="String" required>
+  The type name (e.g., "Temperature Sensor")
+</ParamField>
+
+<ParamField path="description" type="String">
+  Optional description of the device type
+</ParamField>
+
+<ParamField path="categoryId" type="Short" required>
+  The category this type belongs to (1 = Sensor, 2 = Actuator)
+</ParamField>
+
+<ParamField path="defaultUnitId" type="Short">
+  Optional default unit ID for this type (e.g., Celsius for temperature)
+</ParamField>
+
+<ParamField path="dataType" type="String">
+  Optional data type (e.g., "numeric", "boolean")
+</ParamField>
+
+<ParamField path="minExpectedValue" type="Double">
+  Optional minimum expected value for validation
+</ParamField>
+
+<ParamField path="maxExpectedValue" type="Double">
+  Optional maximum expected value for validation
+</ParamField>
+
+<ParamField path="controlType" type="String">
+  Optional control type for actuators (e.g., "on/off", "variable")
+</ParamField>
+
+<ParamField path="isActive" type="Boolean" default="true">
+  Whether the type is active and available for use
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<DeviceCatalogType>" type="Result">
+  Result containing the created device type with auto-generated ID, or error on failure
+</ResponseField>
+
+### updateDeviceType()
+
+Updates an existing device type. All fields are optional for partial updates.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The type ID to update
+</ParamField>
+
+<ParamField path="name" type="String">
+  Optional new name
+</ParamField>
+
+<ParamField path="description" type="String">
+  Optional new description
+</ParamField>
+
+<ParamField path="categoryId" type="Short">
+  Optional new category ID
+</ParamField>
+
+<ParamField path="defaultUnitId" type="Short">
+  Optional new default unit ID
+</ParamField>
+
+<ParamField path="dataType" type="String">
+  Optional new data type
+</ParamField>
+
+<ParamField path="minExpectedValue" type="Double">
+  Optional new minimum expected value
+</ParamField>
+
+<ParamField path="maxExpectedValue" type="Double">
+  Optional new maximum expected value
+</ParamField>
+
+<ParamField path="controlType" type="String">
+  Optional new control type
+</ParamField>
+
+<ParamField path="isActive" type="Boolean">
+  Optional new active status
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<DeviceCatalogType>" type="Result">
+  Result containing the updated device type, or error on failure
+</ResponseField>
+
+### deleteDeviceType()
+
+Deletes a device type from the catalog.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The type ID to delete
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Unit>" type="Result">
+  Result indicating success or failure
+</ResponseField>
+
+### activateDeviceType()
+
+Activates a previously deactivated device type.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The type ID to activate
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<DeviceCatalogType>" type="Result">
+  Result containing the activated device type, or error on failure
+</ResponseField>
+
+### deactivateDeviceType()
+
+Deactivates a device type without deleting it.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The type ID to deactivate
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<DeviceCatalogType>" type="Result">
+  Result containing the deactivated device type, or error on failure
+</ResponseField>
+
+## Device Units
+
+### getDeviceUnits()
+
+Fetches all measurement units from the catalog (e.g., °C, %, kPa).
+
+**Returns**
+
+<ResponseField name="Result<List<DeviceCatalogUnit>>" type="Result">
+  Result containing list of device units, or error on failure
+</ResponseField>
+
+### createDeviceUnit()
+
+Creates a new measurement unit.
+
+**Parameters**
+
+<ParamField path="symbol" type="String" required>
+  The unit symbol (e.g., "°C", "%", "kPa")
+</ParamField>
+
+<ParamField path="name" type="String" required>
+  The unit name (e.g., "Celsius", "Percent", "Kilopascal")
+</ParamField>
+
+<ParamField path="description" type="String">
+  Optional description of the unit
+</ParamField>
+
+<ParamField path="isActive" type="Boolean" default="true">
+  Whether the unit is active and available for use
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<DeviceCatalogUnit>" type="Result">
+  Result containing the created unit with auto-generated ID, or error on failure
+</ResponseField>
+
+### updateDeviceUnit()
+
+Updates an existing measurement unit.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The unit ID to update
+</ParamField>
+
+<ParamField path="symbol" type="String">
+  Optional new symbol
+</ParamField>
+
+<ParamField path="name" type="String">
+  Optional new name
+</ParamField>
+
+<ParamField path="description" type="String">
+  Optional new description
+</ParamField>
+
+<ParamField path="isActive" type="Boolean">
+  Optional new active status
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<DeviceCatalogUnit>" type="Result">
+  Result containing the updated unit, or error on failure
+</ResponseField>
+
+### deleteDeviceUnit()
+
+Deletes a measurement unit from the catalog.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The unit ID to delete
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Unit>" type="Result">
+  Result indicating success or failure
+</ResponseField>
+
+### activateDeviceUnit()
+
+Activates a previously deactivated unit.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The unit ID to activate
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<DeviceCatalogUnit>" type="Result">
+  Result containing the activated unit, or error on failure
+</ResponseField>
+
+### deactivateDeviceUnit()
+
+Deactivates a unit without deleting it.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The unit ID to deactivate
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<DeviceCatalogUnit>" type="Result">
+  Result containing the deactivated unit, or error on failure
+</ResponseField>
+
+## Alert Types
+
+### getAlertTypes()
+
+Fetches all alert types from the catalog.
+
+**Returns**
+
+<ResponseField name="Result<List<AlertType>>" type="Result">
+  Result containing list of alert types, or error on failure
+</ResponseField>
+
+### createAlertType()
+
+Creates a new alert type.
+
+**Parameters**
+
+<ParamField path="name" type="String" required>
+  The alert type name
+</ParamField>
+
+<ParamField path="description" type="String">
+  Optional description of the alert type
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<AlertType>" type="Result">
+  Result containing the created alert type, or error on failure
+</ResponseField>
+
+### updateAlertType()
+
+Updates an existing alert type.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The alert type ID to update
+</ParamField>
+
+<ParamField path="name" type="String">
+  Optional new name
+</ParamField>
+
+<ParamField path="description" type="String">
+  Optional new description
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<AlertType>" type="Result">
+  Result containing the updated alert type, or error on failure
+</ResponseField>
+
+### deleteAlertType()
+
+Deletes an alert type from the catalog.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The alert type ID to delete
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Unit>" type="Result">
+  Result indicating success or failure
+</ResponseField>
+
+## Alert Severities
+
+### getAlertSeverities()
+
+Fetches all alert severity levels from the catalog.
+
+**Returns**
+
+<ResponseField name="Result<List<AlertSeverityCatalog>>" type="Result">
+  Result containing list of alert severities with levels, colors, and notification settings, or error on failure
+</ResponseField>
+
+### createAlertSeverity()
+
+Creates a new alert severity level.
+
+**Parameters**
+
+<ParamField path="name" type="String" required>
+  The severity name (e.g., "Critical", "Warning", "Info")
+</ParamField>
+
+<ParamField path="level" type="Short" required>
+  The severity level (lower numbers = less severe)
+</ParamField>
+
+<ParamField path="description" type="String">
+  Optional description of the severity level
+</ParamField>
+
+<ParamField path="color" type="String">
+  Optional color code in hex format (e.g., "#FF0000" for red)
+</ParamField>
+
+<ParamField path="requiresAction" type="Boolean" required>
+  Whether this severity requires user action
+</ParamField>
+
+<ParamField path="notificationDelayMinutes" type="Int" required>
+  Delay in minutes before sending notifications for this severity
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<AlertSeverityCatalog>" type="Result">
+  Result containing the created severity, or error on failure
+</ResponseField>
+
+### updateAlertSeverity()
+
+Updates an existing alert severity.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The severity ID to update
+</ParamField>
+
+<ParamField path="name" type="String">
+  Optional new name
+</ParamField>
+
+<ParamField path="level" type="Short">
+  Optional new level
+</ParamField>
+
+<ParamField path="description" type="String">
+  Optional new description
+</ParamField>
+
+<ParamField path="color" type="String">
+  Optional new color
+</ParamField>
+
+<ParamField path="requiresAction" type="Boolean">
+  Optional new requires action flag
+</ParamField>
+
+<ParamField path="notificationDelayMinutes" type="Int">
+  Optional new notification delay
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<AlertSeverityCatalog>" type="Result">
+  Result containing the updated severity, or error on failure
+</ResponseField>
+
+### deleteAlertSeverity()
+
+Deletes an alert severity from the catalog.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The severity ID to delete
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Unit>" type="Result">
+  Result indicating success or failure
+</ResponseField>
+
+## Periods
+
+### getPeriods()
+
+Fetches all periods from the catalog (used for scheduling).
+
+**Returns**
+
+<ResponseField name="Result<List<Period>>" type="Result">
+  Result containing list of periods, or error on failure
+</ResponseField>
+
+### createPeriod()
+
+Creates a new period.
+
+**Parameters**
+
+<ParamField path="name" type="String" required>
+  The period name
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Period>" type="Result">
+  Result containing the created period, or error on failure
+</ResponseField>
+
+### updatePeriod()
+
+Updates an existing period.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The period ID to update
+</ParamField>
+
+<ParamField path="name" type="String" required>
+  The new period name
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Period>" type="Result">
+  Result containing the updated period, or error on failure
+</ResponseField>
+
+### deletePeriod()
+
+Deletes a period from the catalog.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The period ID to delete
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Unit>" type="Result">
+  Result indicating success or failure
+</ResponseField>
+
+## Actuator States
+
+### getActuatorStates()
+
+Fetches all actuator states from the catalog (e.g., ON, OFF, STANDBY).
+
+**Returns**
+
+<ResponseField name="Result<List<ActuatorState>>" type="Result">
+  Result containing list of all actuator states, or error on failure
+</ResponseField>
+
+### getOperationalActuatorStates()
+
+Fetches only operational actuator states (excludes error/maintenance states).
+
+**Returns**
+
+<ResponseField name="Result<List<ActuatorState>>" type="Result">
+  Result containing list of operational actuator states, or error on failure
+</ResponseField>
+
+### createActuatorState()
+
+Creates a new actuator state.
+
+**Parameters**
+
+<ParamField path="name" type="String" required>
+  The state name (e.g., "ON", "OFF", "STANDBY")
+</ParamField>
+
+<ParamField path="description" type="String">
+  Optional description of the state
+</ParamField>
+
+<ParamField path="isOperational" type="Boolean" required>
+  Whether this state represents an operational mode
+</ParamField>
+
+<ParamField path="displayOrder" type="Short" required>
+  The display order for sorting in UI
+</ParamField>
+
+<ParamField path="color" type="String">
+  Optional color code in hex format for UI display
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<ActuatorState>" type="Result">
+  Result containing the created actuator state with auto-generated ID, or error on failure
+</ResponseField>
+
+### updateActuatorState()
+
+Updates an existing actuator state.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The state ID to update
+</ParamField>
+
+<ParamField path="name" type="String">
+  Optional new name
+</ParamField>
+
+<ParamField path="description" type="String">
+  Optional new description
+</ParamField>
+
+<ParamField path="isOperational" type="Boolean">
+  Optional new operational status
+</ParamField>
+
+<ParamField path="displayOrder" type="Short">
+  Optional new display order
+</ParamField>
+
+<ParamField path="color" type="String">
+  Optional new color
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<ActuatorState>" type="Result">
+  Result containing the updated actuator state, or error on failure
+</ResponseField>
+
+### deleteActuatorState()
+
+Deletes an actuator state from the catalog.
+
+**Parameters**
+
+<ParamField path="id" type="Short" required>
+  The state ID to delete
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<Unit>" type="Result">
+  Result indicating success or failure
+</ResponseField>
+
+## Usage Example
+
+```kotlin
+class DeviceFormViewModel(
+    private val catalogRepository: CatalogRepository,
+    private val devicesRepository: DevicesRepository
+) : ViewModel() {
+    private val _categories = MutableStateFlow<List<DeviceCatalogCategory>>(emptyList())
+    val categories: StateFlow<List<DeviceCatalogCategory>> = _categories.asStateFlow()
+    
+    private val _types = MutableStateFlow<List<DeviceCatalogType>>(emptyList())
+    val types: StateFlow<List<DeviceCatalogType>> = _types.asStateFlow()
+    
+    private val _units = MutableStateFlow<List<DeviceCatalogUnit>>(emptyList())
+    val units: StateFlow<List<DeviceCatalogUnit>> = _units.asStateFlow()
+
+    init {
+        loadCatalogData()
+    }
+
+    private fun loadCatalogData() {
+        viewModelScope.launch {
+            // Load categories, types, and units in parallel
+            val categoriesDeferred = async { catalogRepository.getDeviceCategories() }
+            val typesDeferred = async { catalogRepository.getDeviceTypes() }
+            val unitsDeferred = async { catalogRepository.getDeviceUnits() }
+            
+            catalogRepository.getDeviceCategories()
+                .onSuccess { categories -> _categories.value = categories }
+            
+            catalogRepository.getDeviceTypes()
+                .onSuccess { types -> _types.value = types }
+            
+            catalogRepository.getDeviceUnits()
+                .onSuccess { units -> _units.value = units }
+        }
+    }
+    
+    fun onCategorySelected(categoryId: Short) {
+        // Filter types by selected category
+        val filteredTypes = _types.value.filter { it.categoryId == categoryId }
+        // Update UI state with filtered types
+    }
+}
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Device Models" icon="microchip" href="/api/models/device">
+    Device catalog data models
+  </Card>
+  
+  <Card title="Alert Models" icon="bell" href="/api/models/alert">
+    Alert type and severity models
+  </Card>
+  
+  <Card title="DevicesRepository" icon="database" href="/api/repositories/devices">
+    Device instance management
+  </Card>
+  
+  <Card title="SettingsRepository" icon="sliders" href="/api/repositories/settings">
+    Settings using catalog data
+  </Card>
+</CardGroup>

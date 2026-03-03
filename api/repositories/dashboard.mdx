@@ -1,0 +1,135 @@
+---
+title: DashboardRepository
+description: Repository interface for dashboard statistics, menu items, and recent activity data
+---
+
+## Overview
+
+The `DashboardRepository` interface provides access to aggregated dashboard data including statistics cards, menu items for navigation, and recent activity across all tenants. It consolidates data from multiple sources for the dashboard view.
+
+## Methods
+
+### getStatCards()
+
+Fetches dashboard statistics formatted as stat cards for display.
+
+**Returns**
+
+<ResponseField name="Result<List<StatCard>>" type="Result">
+  Result containing list of StatCard objects with metrics, or error on failure
+</ResponseField>
+
+### getMenuItems()
+
+Fetches menu items for sidebar navigation based on user permissions.
+
+**Returns**
+
+<ResponseField name="Result<List<MenuItem>>" type="Result">
+  Result containing list of MenuItem objects for navigation, or error on failure
+</ResponseField>
+
+### getDashboardStats()
+
+Fetches aggregated dashboard statistics from all tenants including total counts and active counts.
+
+**Returns**
+
+<ResponseField name="Result<DashboardStats>" type="Result">
+  Result containing DashboardStats with aggregated metrics, or error on failure
+</ResponseField>
+
+### getRecentAlerts()
+
+Fetches recent unresolved alerts across all tenants, sorted by creation date.
+
+**Parameters**
+
+<ParamField path="limit" type="Int" default="5">
+  Maximum number of alerts to return
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<List<RecentAlert>>" type="Result">
+  Result containing list of recent RecentAlert objects, or error on failure
+</ResponseField>
+
+### getRecentClients()
+
+Fetches recently created or updated clients.
+
+**Parameters**
+
+<ParamField path="limit" type="Int" default="5">
+  Maximum number of clients to return
+</ParamField>
+
+**Returns**
+
+<ResponseField name="Result<List<RecentClient>>" type="Result">
+  Result containing list of recent RecentClient objects, or error on failure
+</ResponseField>
+
+## Usage Example
+
+```kotlin
+class DashboardViewModel(
+    private val dashboardRepository: DashboardRepository
+) : ViewModel() {
+    private val _state = MutableStateFlow(DashboardUiState())
+    val state: StateFlow<DashboardUiState> = _state.asStateFlow()
+
+    init {
+        loadDashboard()
+    }
+
+    fun loadDashboard() {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
+            
+            // Load stats and recent data in parallel
+            val statsDeferred = async { dashboardRepository.getDashboardStats() }
+            val alertsDeferred = async { dashboardRepository.getRecentAlerts(5) }
+            val clientsDeferred = async { dashboardRepository.getRecentClients(5) }
+            
+            val stats = statsDeferred.await()
+            val alerts = alertsDeferred.await()
+            val clients = clientsDeferred.await()
+            
+            _state.update { currentState ->
+                currentState.copy(
+                    isLoading = false,
+                    stats = stats.getOrNull(),
+                    recentAlerts = alerts.getOrNull() ?: emptyList(),
+                    recentClients = clients.getOrNull() ?: emptyList(),
+                    error = when {
+                        stats.isFailure -> "Failed to load stats"
+                        else -> null
+                    }
+                )
+            }
+        }
+    }
+}
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Dashboard Models" icon="chart-line" href="/api/models/dashboard">
+    DashboardStats and related data models
+  </Card>
+  
+  <Card title="DashboardViewModel" icon="desktop" href="/api/viewmodels/dashboard">
+    Dashboard screen state management
+  </Card>
+  
+  <Card title="Dashboard Feature" icon="gauge" href="/features/dashboard">
+    Dashboard user interface and features
+  </Card>
+  
+  <Card title="AlertsRepository" icon="bell" href="/api/repositories/alerts">
+    Full alert management operations
+  </Card>
+</CardGroup>

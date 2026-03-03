@@ -1,0 +1,247 @@
+---
+title: Dashboard Models
+description: Data models for dashboard statistics, stat cards, menu items, and recent activity
+---
+
+## Overview
+
+The dashboard models provide aggregated statistics and recent activity data for the admin dashboard view. These models consolidate information from multiple sources to present a comprehensive overview of the system.
+
+## DashboardStats
+
+Aggregated statistics from all tenants in the system.
+
+```kotlin
+data class DashboardStats(
+    val totalClients: Int,
+    val activeClients: Int,
+    val totalGreenhouses: Int,
+    val activeGreenhouses: Int,
+    val totalDevices: Int,
+    val sensorCount: Int,
+    val actuatorCount: Int,
+    val activeAlerts: Int,
+    val criticalAlerts: Int,
+    val totalUsers: Int
+)
+```
+
+### Fields
+
+<ResponseField name="totalClients" type="Int">
+  Total number of clients (tenants) in the system
+</ResponseField>
+
+<ResponseField name="activeClients" type="Int">
+  Number of clients with isActive=true
+</ResponseField>
+
+<ResponseField name="totalGreenhouses" type="Int">
+  Total number of greenhouses across all clients
+</ResponseField>
+
+<ResponseField name="activeGreenhouses" type="Int">
+  Number of greenhouses with isActive=true
+</ResponseField>
+
+<ResponseField name="totalDevices" type="Int">
+  Total number of devices (sensors + actuators)
+</ResponseField>
+
+<ResponseField name="sensorCount" type="Int">
+  Number of sensor devices (categoryId=1)
+</ResponseField>
+
+<ResponseField name="actuatorCount" type="Int">
+  Number of actuator devices (categoryId=2)
+</ResponseField>
+
+<ResponseField name="activeAlerts" type="Int">
+  Number of unresolved alerts
+</ResponseField>
+
+<ResponseField name="criticalAlerts" type="Int">
+  Number of critical severity alerts
+</ResponseField>
+
+<ResponseField name="totalUsers" type="Int">
+  Total number of users across all tenants
+</ResponseField>
+
+## StatCard
+
+Represents a single statistic card displayed on the dashboard.
+
+```kotlin
+data class StatCard(
+    val id: String,
+    val title: String,
+    val value: String,
+    val subtitle: String,
+    val subtitleColor: StatCardSubtitleColor = StatCardSubtitleColor.DEFAULT,
+    val icon: StatCardIcon
+)
+```
+
+### Fields
+
+<ResponseField name="id" type="String">
+  Unique identifier for the stat card
+</ResponseField>
+
+<ResponseField name="title" type="String">
+  Title of the stat (e.g., "Clients", "Greenhouses")
+</ResponseField>
+
+<ResponseField name="value" type="String">
+  Main value to display (e.g., "24", "12 active")
+</ResponseField>
+
+<ResponseField name="subtitle" type="String">
+  Subtitle or additional context
+</ResponseField>
+
+<ResponseField name="subtitleColor" type="StatCardSubtitleColor" default="DEFAULT">
+  Color variant for the subtitle (DEFAULT, SUCCESS, WARNING)
+</ResponseField>
+
+<ResponseField name="icon" type="StatCardIcon">
+  Icon to display on the card (PEOPLE, GREENHOUSE, DEVICES, ALERT, USERS)
+</ResponseField>
+
+## MenuItem
+
+Represents a menu item in the sidebar navigation.
+
+```kotlin
+data class MenuItem(
+    val id: String,
+    val title: String,
+    val icon: MenuIcon,
+    val route: String
+)
+```
+
+### Fields
+
+<ResponseField name="id" type="String">
+  Unique identifier for the menu item
+</ResponseField>
+
+<ResponseField name="title" type="String">
+  Display text for the menu item
+</ResponseField>
+
+<ResponseField name="icon" type="MenuIcon">
+  Icon for the menu item (DASHBOARD, CLIENTS, SETTINGS)
+</ResponseField>
+
+<ResponseField name="route" type="String">
+  Navigation route for the menu item
+</ResponseField>
+
+## RecentAlert
+
+Represents a recent alert for dashboard display.
+
+```kotlin
+data class RecentAlert(
+    val id: Long,
+    val code: String,
+    val tenantId: Long,
+    val tenantName: String,
+    val sectorCode: String?,
+    val message: String?,
+    val description: String?,
+    val severityName: String?,
+    val severityLevel: Short?,
+    val createdAt: String
+) {
+    val displayText: String
+        get() = message ?: description ?: ""
+}
+```
+
+### Computed Properties
+
+<ResponseField name="displayText" type="String">
+  Returns the message if available, otherwise description, or empty string
+</ResponseField>
+
+## RecentClient
+
+Represents a recent client for dashboard display.
+
+```kotlin
+data class RecentClient(
+    val id: Long,
+    val code: String,
+    val name: String,
+    val province: String?,
+    val isActive: Boolean
+)
+```
+
+## DeviceBreakdown
+
+Breakdown of devices by category.
+
+```kotlin
+data class DeviceBreakdown(
+    val sensors: Int = 0,
+    val actuators: Int = 0
+) {
+    val total: Int get() = sensors + actuators
+}
+```
+
+### Computed Properties
+
+<ResponseField name="total" type="Int">
+  Total number of devices (sensors + actuators)
+</ResponseField>
+
+## Enums
+
+### StatCardSubtitleColor
+
+Color variants for stat card subtitles:
+- `DEFAULT` - Primary green for positive changes
+- `SUCCESS` - Green for good status indicators
+- `WARNING` - Orange/Yellow for alerts requiring attention
+
+### StatCardIcon
+
+Icons available for stat cards:
+- `PEOPLE` - For client/tenant counts
+- `GREENHOUSE` - For greenhouse counts
+- `DEVICES` - For device counts
+- `ALERT` - For alert counts
+- `USERS` - For user counts
+
+### MenuIcon
+
+Icons available for menu items:
+- `DASHBOARD` - Dashboard view
+- `CLIENTS` - Client management
+- `SETTINGS` - Settings and configuration
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="DashboardRepository" icon="database" href="/api/repositories/dashboard">
+    Repository for fetching dashboard data
+  </Card>
+  
+  <Card title="DashboardViewModel" icon="desktop" href="/api/viewmodels/dashboard">
+    Dashboard screen state management
+  </Card>
+  
+  <Card title="Dashboard Feature" icon="gauge" href="/features/dashboard">
+    User guide for dashboard features
+  </Card>
+  
+  <Card title="Alert Models" icon="bell" href="/api/models/alert">
+    Full alert data models
+  </Card>
+</CardGroup>
